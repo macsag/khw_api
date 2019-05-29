@@ -15,7 +15,7 @@ from indexer.bib_indexer import create_bib_index
 
 from updater.updater_status import UpdaterStatus
 from updater.authority_updater import AuthorityUpdater
-from updater.bib_updater import BibUpdater
+import updater.bib_updater
 from updater.background_tasks import do_authority_update, do_bib_update
 
 from objects.bib import BibliographicRecordsChunk
@@ -89,8 +89,16 @@ class UpdaterStatusView(HTTPEndpoint):
 
 
 if __name__ == '__main__':
-    logging.root.addHandler(logging.StreamHandler(sys.stdout))
-    logging.root.setLevel(level=logging.DEBUG)
+    # set logging
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+    file_fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    root = logging.getLogger()
+
+    fhandler = logging.FileHandler('khw_log.log', 'a', encoding='utf-8')
+    fhandler.setFormatter(file_fmt)
+
+    root.addHandler(fhandler)
 
 
     # set index source files
@@ -101,7 +109,7 @@ if __name__ == '__main__':
     local_bib_index = create_bib_index(bib_marc)
 
     # create updaters and updater_status
-    bib_updater = BibUpdater()
+    bib_updater = updater.bib_updater.BibUpdater()
     auth_updater = AuthorityUpdater()
     updater_status = UpdaterStatus(datetime.utcnow())
 
