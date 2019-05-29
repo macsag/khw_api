@@ -17,7 +17,7 @@ class BibUpdater(object):
     def update_bibliographic_index(self, bib_index, updater_status):
         # set update status
         updater_status.update_in_progress = True
-        logging.info("Status: {}".format(updater_status.update_in_progress))
+        logging.info("Zmieniono status updatera na: {}".format(updater_status.update_in_progress))
 
         # create dates for queries
         date_from = updater_status.last_bib_update - timedelta(days=TIMEDELTA_CONFIG)
@@ -30,14 +30,14 @@ class BibUpdater(object):
             date_from_in_iso_with_z, date_to_in_iso_with_z)
 
         deleted_records_ids = self.get_records_ids_from_data_bn_for_bibliographic_index_update(deleted_query)
-        logging.info("Rekordów usuniętych: {}".format(len(deleted_records_ids)))
+        logging.info("Rekordów bibliograficznych usuniętych: {}".format(len(deleted_records_ids)))
 
         # get updated bib records ids from data.bn.org.pl
         updated_query = 'http://data.bn.org.pl/api/bibs.json?updatedDate={}%2C{}&limit=100'.format(
             date_from_in_iso_with_z, date_to_in_iso_with_z)
 
         updated_records_ids = self.get_records_ids_from_data_bn_for_bibliographic_index_update(updated_query)
-        logging.info("Rekordów zmodyfikowanych: {}".format(len(updated_records_ids)))
+        logging.info("Rekordów bibliograficznych zmodyfikowanych: {}".format(len(updated_records_ids)))
 
         # delete authority records from authority index by record id (deletes entries by record id and heading)
         self.remove_deleted_records_from_bibliographic_index(deleted_records_ids, bib_index)
@@ -48,7 +48,7 @@ class BibUpdater(object):
         # set update status
         updater_status.update_in_progress = False
         updater_status.last_bib_update = date_to
-        logging.info("Status: {}".format(updater_status.update_in_progress))
+        logging.info("Zmieniono status updatera na: {}".format(updater_status.update_in_progress))
 
     @staticmethod
     def update_updated_records_in_bibliographic_index(updated_records_ids, bib_index):

@@ -1,8 +1,9 @@
 import requests
+import logging
 from pymarc import marcxml, MARCReader
 
 from utils.marc_utils import process_record
-from config.base_url_config import BASE_URL
+from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST
 
 
 class BibliographicRecordsChunk(object):
@@ -20,10 +21,13 @@ class BibliographicRecordsChunk(object):
         self.xml_processed_chunk = self.produce_output_xml()
 
     def get_json_response(self):
+        logging.debug(self.query)
         if 'http://data.bn.org.pl/api/bibs.json?{}' not in self.query:
             processed_query = 'http://data.bn.org.pl/api/bibs.json?{}'.format(self.query)
+            logging.debug(processed_query)
         else:
             processed_query = self.query
+            logging.debug(processed_query)
 
         r = requests.get(processed_query)
         json_chunk = r.json()
@@ -36,20 +40,22 @@ class BibliographicRecordsChunk(object):
             record_id = rcd['marc']['fields'][0]['001']
             records_ids.append(record_id)
 
+        logging.debug(records_ids)
+
         return records_ids
 
     def get_next_page_for_data_bn(self):
         return self.json_response['nextPage']
 
     def create_next_page_for_user(self):
-        if 'localhost' in BASE_URL or '127.0.0.1' in BASE_URL:
-            base = BASE_URL
+        if IS_LOCAL:
+            base = f'{LOC_HOST}:{LOC_PORT}'
         else:
-            base = 'khw.data.bn.org.pl'
+            base = PROD_HOST
         if self.next_page_for_data_bn:
             query = self.next_page_for_data_bn.split('json?')[1]
 
-            next_page_for_user = f'http://{base}/{self.identifier_type}/bibs?{query}'
+            next_page_for_user = f'http://{base}/api/{self.identifier_type}/bibs?{query}'
         else:
             next_page_for_user = ''
 
@@ -78,7 +84,11 @@ class BibliographicRecordsChunk(object):
             if record_id in bib_index:
                 marc_data_chunk_list.append(bib_index[record_id])
 
+        logging.debug(marc_data_chunk_list)
+
         marc_data_chunk_joined_to_one_bytearray = bytearray().join(marc_data_chunk_list)
+
+        logging.debug(marc_data_chunk_joined_to_one_bytearray)
 
         return marc_data_chunk_joined_to_one_bytearray
 
@@ -89,16 +99,23 @@ class BibliographicRecordsChunk(object):
         for rcd in marc_rdr:
             marc_objects_chunk.append(rcd)
 
+        logging.debug(marc_objects_chunk)
+
         return marc_objects_chunk
 
     def batch_process_records(self, auth_index):
+        logging.debug(self.identifier_type)
         processed_records = [process_record(rcd, auth_index, self.identifier_type) for rcd in self.marc_objects_chunk]
+
+        logging.debug(processed_records)
+
         return processed_records
 
     def produce_output_xml(self):
         wrapped_processed_records_in_xml = []
 
         for rcd in self.marc_processed_objects_chunk:
+            print(rcd)
             xmlized_rcd = marcxml.record_to_xml(rcd, namespace=True)
             wrapped_rcd = '<bib>' + str(xmlized_rcd)[2:-1] + '</bib>'
             wrapped_processed_records_in_xml.append(wrapped_rcd)

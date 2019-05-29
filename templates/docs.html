@@ -26,12 +26,12 @@
             Dostępne metody
           </h3>
             <h4 class="subtitle is-4">
-                /get_bibs/{zapytanie do data.bn.org.pl}
+                /api/nlp_id/bibs?{zapytanie do data.bn.org.pl}
             </h4>
-                <p class="content">Metoda zwraca żądane rekordy bibliograficzne wzbogacone o identyfikatory rekordów wzorcowych; w zapytaniu należy pominąć prefix rodzaju rekordu i formatu, czyli "bibs.xml?".</p>
-                <p class="content">Przykładowe poprawne zapytanie: /get_bibs/createdDate=2018-11-13T10%3A00%3A00Z%2C2018-11-13T11%3A00%3A00Z&limit=100</p>
+                <p class="content">Metoda zwraca żądane rekordy bibliograficzne wzbogacone o identyfikatory rekordów wzorcowych w formacie xml; w zapytaniu należy pominąć prefix rodzaju rekordu i formatu, czyli "bibs.xml".</p>
+                <p class="content">Przykładowe poprawne zapytanie: /api/nlp_id/bibs?createdDate=2019-05-10T10%3A00%3A00Z%2C2019-05-20T11%3A00%3A00Z&limit=100</p>
                 <p class="content">
-                    <a href="http://khw.data.bn.org.pl/get_bibs/createdDate=2018-11-13T10%3A00%3A00Z%2C2018-11-13T11%3A00%3A00Z&limit=100" class="button is-link">Wypróbuj</a>
+                    <a href="http://khw.data.bn.org.pl/api/nlp_id/bibs?createdDate=createdDate=2019-05-10T10%3A00%3A00Z%2C2019-05-20T11%3A00%3A00Z&limit=100" class="button is-link">Wypróbuj</a>
                 </p>
     </div>
   </section>

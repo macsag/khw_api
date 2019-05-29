@@ -1,13 +1,14 @@
 import logging
 import sys
+from datetime import datetime
+
+import uvicorn
 
 from starlette.applications import Starlette
-from starlette.staticfiles import StaticFiles
 from starlette.responses import PlainTextResponse, Response, JSONResponse
 from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
-import uvicorn
 
 from indexer.authority_indexer import create_authority_index
 from indexer.bib_indexer import create_bib_index
@@ -19,13 +20,12 @@ from updater.background_tasks import do_authority_update, do_bib_update
 
 from objects.bib import BibliographicRecordsChunk
 
-from datetime import datetime
+from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
 
 
 templates = Jinja2Templates(directory='templates')
 
-app = Starlette(debug=True, template_directory='templates')
-app.mount('/static', StaticFiles(directory='statics'), name='static')
+app = Starlette(debug=False, template_directory='templates')
 
 
 # homepage
@@ -43,26 +43,6 @@ class BibChunkEnrichedWithIds(HTTPEndpoint):
         bib_chunk_object = BibliographicRecordsChunk(
             request.query_params, local_auth_index, local_bib_index, identifier_type)
         return Response(bib_chunk_object.xml_processed_chunk, media_type='application/xml')
-
-
-# bibs
-# id resolver
-@app.route('/api/id_resolver/bibs/{bib_id}')
-class BibIdResolver(HTTPEndpoint):
-    async def get(self, request):
-        bib_id = request.path_params['bib_id']
-        resolved_bib = resolver_bib_index.get(bib_id)
-        return JSONResponse(resolved_bib)
-
-
-# authorities
-# id resolver
-#@app.route('/id_resolver/authorities/{authority_id}')
-#class AuthorityIdResolver(HTTPEndpoint):
-#    async def get(self, request):
-#        authority_id = request.path_params['authority_id']
-#        resolved_authority = resolver_authority_index.get(authority_id)
-#        return JSONResponse(resolved_authority)
 
 
 @app.route('/api/bibs/{bib_id}')
@@ -114,15 +94,18 @@ if __name__ == '__main__':
 
 
     # set index source files
-    bib_marc = 'nlp_database/test/bibs-all.marc'
-    auth_marc = 'nlp_database/test/authorities-all.marc'
+    auth_marc = 'nlp_database/test/authorities_test_100.mrc'
+    bib_marc = 'nlp_database/test/bibs_test_100.mrc'
 
     local_auth_index = create_authority_index(auth_marc)
-    local_bib_index, resolver_bib_index = create_bib_index(bib_marc, resolver_index=True)
+    local_bib_index = create_bib_index(bib_marc)
 
     # create updaters and updater_status
     bib_updater = BibUpdater()
     auth_updater = AuthorityUpdater()
     updater_status = UpdaterStatus(datetime.utcnow())
 
-    uvicorn.run(app, host='127.0.0.1', port=8000)
+    if IS_LOCAL:
+        uvicorn.run(app, host=LOC_HOST, port=LOC_PORT)
+    else:
+        uvicorn.run(app, host=PROD_HOST, port=PROD_PORT)

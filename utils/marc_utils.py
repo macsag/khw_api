@@ -34,7 +34,6 @@ def get_marc_authority_data_from_data_bn(records_ids):
         query = 'http://data.bn.org.pl/api/authorities.marc?id={}&limit=100'.format(ids_for_query)
 
         result = bytearray(requests.get(query).content)
-        #logging.debug("Pobieram: {}".format(query))
         return result
 
 
@@ -51,11 +50,10 @@ def get_marc_bibliographic_data_from_data_bn(records_ids):
         query = 'http://data.bn.org.pl/api/bibs.marc?id={}&limit=100'.format(ids_for_query)
 
         result = bytearray(requests.get(query).content)
-        #logging.debug("Pobieram: {}".format(query))
         return result
 
 
-def process_record(marc_record, auth_index, identifier_type, change_001=False):
+def process_record(marc_record, auth_index, identifier_type):
     """
     Main processing loop for adding authority identifiers to bibliographic record.
     """
@@ -77,17 +75,4 @@ def process_record(marc_record, auth_index, identifier_type, change_001=False):
                         raw_fld.add_subfield('0', identifier)
                         marc_record.add_ordered_field(raw_fld)
 
-    if change_001:
-        raw_fld_001 = marc_record.get_fields('001')[0]
-        do_change_001(marc_record, raw_fld_001)
-
     return marc_record
-
-
-def do_change_001(marc_record, raw_fld_001):
-    fld_001_value = raw_fld_001.value()
-    if fld_001_value[1] == '1':
-        pass
-    else:
-        marc_record.remove_field(raw_fld_001)
-        marc_record.add_ordered_field(Field(tag='001', data=f'{fld_001_value[0]}{fld_001_value[7:]}'))

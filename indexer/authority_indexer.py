@@ -1,11 +1,11 @@
 from tqdm import tqdm
 from pymarc import MARCReader
+import logging
 
 from config.indexer_config import AUTHORITY_INDEX_FIELDS
 from utils.indexer_utils import prepare_dict_of_authority_ids_to_append, get_nlp_id
 from utils.marc_utils import get_rid_of_punctuation
 
-import logging
 
 def create_authority_index(data):
     """
@@ -27,6 +27,6 @@ def create_authority_index(data):
 
                     authority_index.setdefault(heading, {}).update({nlp_id: dict_of_ids_to_append})
                     authority_index[nlp_id] = heading
-                    logging.info(f'Zaindeksowano: {heading} | {authority_index[heading]}')
+                    logging.debug(f'Zaindeksowano: {heading} | {authority_index[heading]}')
 
     return authority_index
