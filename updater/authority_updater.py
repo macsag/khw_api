@@ -108,7 +108,7 @@ class AuthorityUpdater(object):
                 heading = authority_index.pop(record_id)
                 heading_ids = authority_index[heading]
                 if len(heading_ids) > 1:
-                    heading_ids.remove(record_id)
+                    del heading_ids[record_id]
                     logging.debug(f'Usunięto zestaw id z (del): {heading}')
                 else:
                     del authority_index[heading]
