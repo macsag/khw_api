@@ -66,8 +66,7 @@ class BibUpdater(object):
     @staticmethod
     def remove_deleted_records_from_bibliographic_index(records_ids, bib_index):
         for record_id in records_ids:
-            if record_id in bib_index:
-                del bib_index[record_id]
+            bib_index.pop(record_id, None)
 
     @staticmethod
     def get_records_ids_from_data_bn_for_bibliographic_index_update(query):
