@@ -84,13 +84,13 @@ class AuthorityUpdater(object):
                                     old_heading_ids = authority_index[old_heading]  # get reference to old heading ids
 
                                     if len(old_heading_ids) > 1:  # there is more than one dict of ids
-                                        del old_heading_ids[nlp_id]  # delete the obsolete dict of ids
+                                        old_heading_ids.pop(nlp_id, None)  # delete the obsolete dict of ids
                                         logging.debug(f'Usunięto zestaw id z (mod): {old_heading}')
 
                                         authority_index.setdefault(heading, {}).update(dict_of_ids_to_append)  # set new ids
                                         break
                                     else:  # there is only one dict of ids
-                                        del authority_index[old_heading]  # delete entry completely
+                                        authority_index.pop(old_heading, None)  # delete entry completely
                                         logging.debug(f'Usunięto hasło całkowicie (mod): {old_heading}')
 
                                         authority_index.setdefault(heading, {}).update(dict_of_ids_to_append)  # set new ids
@@ -108,10 +108,10 @@ class AuthorityUpdater(object):
                 heading = authority_index.pop(record_id)
                 heading_ids = authority_index[heading]
                 if len(heading_ids) > 1:
-                    del heading_ids[record_id]
+                    heading_ids.pop(record_id, None)
                     logging.debug(f'Usunięto zestaw id z (del): {heading}')
                 else:
-                    del authority_index[heading]
+                    authority_index.pop(heading, None)
                     logging.debug(f'Usunięto hasło całkowicie (del): {heading}')
 
     @staticmethod
