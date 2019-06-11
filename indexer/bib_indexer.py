@@ -1,7 +1,7 @@
 from tqdm import tqdm
 from pymarc import MARCReader
 
-from utils.indexer_utils import get_nlp_id, get_mms_id
+from utils.indexer_utils import get_nlp_id
 
 
 def create_bib_index(data, resolver_index=False):
