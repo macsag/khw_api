@@ -16,29 +16,30 @@ class AuthorityUpdater(object):
         pass
 
     def update_authority_index(self, authority_index, updater_status):
-        # health check
+        # data.bn.org.pl health check
         if is_data_bn_ok():
-            # set update status
+
+            # set updater status
             updater_status.update_in_progress = True
-            logging.info("Zmieniono status updatera na: {}".format(updater_status.update_in_progress))
+            logging.info(f'AUTHORITIES | Zmieniono status updatera na: {updater_status.update_in_progress}.')
 
             # create dates for queries
             date_from = updater_status.last_auth_update - timedelta(days=TIMEDELTA_CONFIG)
-            date_from_in_iso_with_z = date_from.isoformat(timespec='seconds') + 'Z'
+            date_from_iso_z = date_from.isoformat(timespec='seconds') + 'Z'
+
             date_to = datetime.utcnow()
-            date_to_in_iso_with_z = date_to.isoformat(timespec='seconds') + 'Z'
+            date_to_iso_z = date_to.isoformat(timespec='seconds') + 'Z'
+
+            # set query address
+            query_address = 'http://data.bn.org.pl/api/authorities.json'
 
             # get deleted authority records ids from data.bn.org.pl
-            deleted_query = 'http://data.bn.org.pl/api/authorities.json?updatedDate={}%2C{}&deleted=true&limit=100'.format(
-                                                                            date_from_in_iso_with_z, date_to_in_iso_with_z)
-
+            deleted_query = f'{query_address}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&deleted=true&limit=100'
             deleted_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query)
             logging.info("Rekordów wzorcowych usuniętych: {}".format(len(deleted_records_ids)))
 
             # get updated authority records ids from data.bn.org.pl
-            updated_query = 'http://data.bn.org.pl/api/authorities.json?updatedDate={}%2C{}&limit=100'.format(
-                                                                date_from_in_iso_with_z, date_to_in_iso_with_z)
-
+            updated_query = f'{query_address}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
             updated_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(updated_query)
             logging.info("Rekordów wzorcowych zmodyfikowanych: {}".format(len(updated_records_ids)))
 
@@ -48,10 +49,10 @@ class AuthorityUpdater(object):
             # update authority records in authority index by record id (updates entries by record id and heading)
             self.update_updated_records_in_authority_index(updated_records_ids, authority_index)
 
-            # set update status
+            # set updater status
             updater_status.update_in_progress = False
             updater_status.last_auth_update = date_to
-            logging.info("Zmieniono status updatera na: {}".format(updater_status.update_in_progress))
+            logging.info(f'AUTHORITIES | Zmieniono status updatera na: {updater_status.update_in_progress}')
         else:
             pass
 
