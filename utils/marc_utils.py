@@ -65,11 +65,16 @@ def process_record(marc_record, auth_index, identifier_type):
             raw_objects_flds_list = marc_record.get_fields(fld)
 
             for raw_fld in raw_objects_flds_list:
-                term_to_search = get_rid_of_punctuation(
-                    ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
+                term_to_search = get_rid_of_punctuation(' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
                 if term_to_search in auth_index:
-                    identifier = list(auth_index[term_to_search].values())[0][identifier_type]
+                    identifier = None
+
+                    if identifier_type == 'nlp_id':
+                        identifier = list(auth_index.get(term_to_search).keys())[0]
+                    if identifier_type == 'mms_id':
+                        identifier = list(auth_index.get(term_to_search).values())[0]
+
                     if identifier:
                         marc_record.remove_field(raw_fld)
                         raw_fld.add_subfield('0', identifier)

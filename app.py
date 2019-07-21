@@ -1,11 +1,10 @@
 import logging
-import sys
 from datetime import datetime
 
 import uvicorn
 
 from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse, Response, JSONResponse
+from starlette.responses import PlainTextResponse, Response
 from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
@@ -90,7 +89,7 @@ class UpdaterStatusView(HTTPEndpoint):
 
 if __name__ == '__main__':
     # set logging
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     file_fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     root = logging.getLogger()
@@ -102,8 +101,8 @@ if __name__ == '__main__':
 
 
     # set index source files
-    auth_marc = 'nlp_database/test/authorities_test_100.mrc'
-    bib_marc = 'nlp_database/test/bibs_test_100.mrc'
+    auth_marc = 'nlp_database/test/authorities-all.marc'
+    bib_marc = 'nlp_database/test/bibs-dokument_elektroniczny.mrc'
 
     local_auth_index = create_authority_index(auth_marc)
     local_bib_index = create_bib_index(bib_marc)

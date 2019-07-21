@@ -3,7 +3,7 @@ from pymarc import MARCReader
 import logging
 
 from config.indexer_config import AUTHORITY_INDEX_FIELDS
-from utils.indexer_utils import prepare_dict_of_authority_ids_to_append, get_nlp_id
+from utils.indexer_utils import get_nlp_id, get_mms_id
 from utils.marc_utils import get_rid_of_punctuation
 
 
@@ -21,12 +21,13 @@ def create_authority_index(data):
         for rcd in tqdm(rdr):
             for fld in AUTHORITY_INDEX_FIELDS:
                 if fld in rcd:
-                    dict_of_ids_to_append = prepare_dict_of_authority_ids_to_append(rcd)
                     heading = get_rid_of_punctuation(rcd.get_fields(fld)[0].value())
                     nlp_id = get_nlp_id(rcd)
+                    mms_id = get_mms_id(rcd)
 
-                    authority_index.setdefault(heading, {}).update({nlp_id: dict_of_ids_to_append})
+                    authority_index.setdefault(heading, {}).update({nlp_id: mms_id})
                     authority_index[nlp_id] = heading
                     logging.debug(f'Zaindeksowano: {heading} | {authority_index[heading]}')
+                    logging.debug(f'Zaindeksowano: {nlp_id} | {heading}')
 
     return authority_index

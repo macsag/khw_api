@@ -61,22 +61,6 @@ class BibliographicRecordsChunk(object):
 
         return next_page_for_user
 
-    def get_bibliographic_records_in_marc_from_data_bn(self):
-        """
-        Currently not used. Requires additional query to data.bn.org.pl.
-        Uses get_bibliographic_records_in_marc_from_local_bib_index instead.
-        """
-
-        records_ids_length = len(self.records_ids)
-
-        if records_ids_length <= 100:
-            ids_for_query = '%2C'.join(record_id for record_id in self.records_ids)
-            query = 'http://data.bn.org.pl/api/bibs.marc?id={}&amp;limit=100'.format(ids_for_query)
-
-            marc_data_chunk = bytearray(requests.get(query).content)
-
-            return marc_data_chunk
-
     def get_bibliographic_records_in_marc_from_local_bib_index(self, bib_index):
         marc_data_chunk_list = []
 

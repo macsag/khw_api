@@ -3,7 +3,7 @@ from pymarc import MARCReader
 from datetime import datetime, timedelta
 import logging
 
-from utils.indexer_utils import get_nlp_id, prepare_dict_of_authority_ids_to_append, is_data_bn_ok
+from utils.indexer_utils import get_nlp_id, get_mms_id, is_data_bn_ok
 from utils.marc_utils import get_rid_of_punctuation, get_marc_authority_data_from_data_bn
 from utils.updater_utils import get_nlp_id_from_json
 
@@ -43,11 +43,11 @@ class AuthorityUpdater(object):
             updated_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(updated_query)
             logging.info("Rekordów wzorcowych zmodyfikowanych: {}".format(len(updated_records_ids)))
 
-            # delete authority records from authority index by record id (deletes entries by record id and heading)
-            self.remove_deleted_records_from_authority_index(deleted_records_ids, authority_index)
-
             # update authority records in authority index by record id (updates entries by record id and heading)
             self.update_updated_records_in_authority_index(updated_records_ids, authority_index)
+
+            # delete authority records from authority index by record id (deletes entries by record id and heading)
+            self.remove_deleted_records_from_authority_index(deleted_records_ids, authority_index)
 
             # set updater status
             updater_status.update_in_progress = False
@@ -70,7 +70,7 @@ class AuthorityUpdater(object):
                 for fld in AUTHORITY_INDEX_FIELDS:
                     if fld in rcd:
                         heading = get_rid_of_punctuation(rcd.get_fields(fld)[0].value())
-                        dict_of_ids_to_append = prepare_dict_of_authority_ids_to_append(rcd)
+                        mms_id = get_mms_id(rcd)
                         nlp_id = get_nlp_id(rcd)
 
                         if nlp_id:
@@ -84,21 +84,22 @@ class AuthorityUpdater(object):
 
                                     old_heading_ids = authority_index[old_heading]  # get reference to old heading ids
 
-                                    if len(old_heading_ids) > 1:  # there is more than one dict of ids
-                                        old_heading_ids.pop(nlp_id, None)  # delete the obsolete dict of ids
+                                    if len(old_heading_ids) > 1:  # there is more than one id for the heading
+                                        old_heading_ids.pop(nlp_id, None)  # delete the obsolete id
                                         logging.debug(f'Usunięto zestaw id z (mod): {old_heading}')
 
-                                        authority_index.setdefault(heading, {}).update(dict_of_ids_to_append)  # set new ids
+                                        # set new ids
+                                        authority_index.setdefault(heading, {}).update({nlp_id: mms_id})
                                         break
                                     else:  # there is only one dict of ids
                                         authority_index.pop(old_heading, None)  # delete entry completely
                                         logging.debug(f'Usunięto hasło całkowicie (mod): {old_heading}')
 
-                                        authority_index.setdefault(heading, {}).update(dict_of_ids_to_append)  # set new ids
+                                        authority_index.setdefault(heading, {}).update({nlp_id: mms_id})  # set new ids
                                         break
                             else:  # rcd is new and it has to be indexed
                                 authority_index[nlp_id] = heading
-                                authority_index.setdefault(heading, {}).update(dict_of_ids_to_append)
+                                authority_index.setdefault(heading, {}).update({nlp_id: mms_id})
                                 logging.debug(f'Dodano nowe hasło (new): {heading}')
                                 break
 
