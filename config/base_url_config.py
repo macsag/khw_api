@@ -1,4 +1,4 @@
-IS_LOCAL = True
+IS_LOCAL = False
 
 PROD_HOST = 'khw.data.bn.org.pl'
 PROD_PORT = 80

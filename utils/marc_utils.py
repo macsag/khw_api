@@ -1,6 +1,5 @@
 import requests
 from pymarc import MARCReader
-from pymarc import Field
 
 from config.indexer_config import FIELDS_TO_CHECK
 

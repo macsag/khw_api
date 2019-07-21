@@ -101,8 +101,8 @@ if __name__ == '__main__':
 
 
     # set index source files
-    auth_marc = 'nlp_database/test/authorities-all.marc'
-    bib_marc = 'nlp_database/test/bibs-dokument_elektroniczny.mrc'
+    auth_marc = 'nlp_database/production/authorities-all.marc'
+    bib_marc = 'nlp_database/production/bibs-all.marc'
 
     local_auth_index = create_authority_index(auth_marc)
     local_bib_index = create_bib_index(bib_marc)
