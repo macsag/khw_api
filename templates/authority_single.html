@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>{{ response[2].descriptor_preferred_name[0] }}</title>
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+  </head>
+  <body>
+ <nav class="navbar navbar-dark bg-primary">
+      <a class="navbar-brand">Navbar</a>
+  <form class="form-inline" method="get" action="/search">
+    <input class="form-control mr-sm-2" type="search" id="search" name="q" placeholder="Szukaj" aria-label="Search">
+    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Szukaj</button>
+  </form>
+</nav>
+      <div class="container">
+    <div>
+<div class="row">
+     <div class="col-md-4">
+  <!-- Nav tabs -->
+  <ul class="nav nav-pills nav-stacked" role="tablist">
+    <li role="presentation" class="active"><a href="#html" aria-controls="html" role="tab" data-toggle="tab">HTML</a></li>
+    <li role="presentation"><a href="#marc21" aria-controls="marc21" role="tab" data-toggle="tab">MARC21</a></li>
+    <li role="presentation"><a href="#marc21iso" aria-controls="marc21iso" role="tab" data-toggle="tab">MARC21 ISO</a></li>
+  </ul>
+</div>
+    <div class="col-md-8">
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <div role="tabpanel" class="tab-pane active" id="html">
+        <div>
+                {% for key, values in response[2].items() -%}
+        <div class="row">
+          <div class="col-md-3">
+            {{ key }}
+          </div>
+          <div class="col-md-9">
+                {% for value in values -%}
+              <div class="row">
+              {{ value }}
+              </div>
+              {% endfor %}
+            </div>
+        </div>
+                {% endfor %}
+        </div>
+    </div>
+    <div role="tabpanel" class="tab-pane" id="marc21">
+      <div>
+
+                {% for field in response[0] -%}
+        <div class="row">
+          <div class="col-md-1"></div>
+          <div class="col-md-11">
+                {{ field }}
+            </div>
+        </div>
+                {% endfor %}
+
+              </div>
+    </div>
+    <div role="tabpanel" class="tab-pane" id="marc21iso">
+       <div>
+
+                {{ response[1] }}
+
+              </div>
+    </div>
+  </div>
+
+</div>
+        </div></div>
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>
+  </body>
+</html>

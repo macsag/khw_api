@@ -26,8 +26,8 @@ def create_authority_index(data):
                     mms_id = get_mms_id(rcd)
 
                     authority_index.setdefault(heading, {}).update({nlp_id: mms_id})
-                    authority_index[nlp_id] = heading
-                    logging.debug(f'Zaindeksowano: {heading} | {authority_index[heading]}')
-                    logging.debug(f'Zaindeksowano: {nlp_id} | {heading}')
+                    #authority_index[nlp_id] = heading
+                    #logging.debug(f'Zaindeksowano: {heading} | {authority_index[heading]}')
+                    #logging.debug(f'Zaindeksowano: {nlp_id} | {heading}')
 
     return authority_index

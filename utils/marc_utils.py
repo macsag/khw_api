@@ -63,7 +63,7 @@ def process_record(marc_record, auth_index, identifier_type):
         if fld in marc_record:
             raw_objects_flds_list = marc_record.get_fields(fld)
 
-            for raw_fld in raw_objects_flds_list:
+
                 term_to_search = get_rid_of_punctuation(' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
                 if term_to_search in auth_index:
