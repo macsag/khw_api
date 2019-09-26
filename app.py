@@ -10,12 +10,10 @@ from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
 
 from indexer.authority_indexer import create_authority_index
-from indexer.bib_indexer import create_bib_index
 
 from updater.updater_status import UpdaterStatus
 from updater.authority_updater import AuthorityUpdater
-import updater.bib_updater
-from updater.background_tasks import do_authority_update, do_bib_update
+from updater.background_tasks import do_authority_update
 
 from objects.bib import BibliographicRecordsChunk
 
@@ -34,24 +32,17 @@ async def homepage(request):
 
 
 # bibs
-# chunk of bibs - data.bn.org.pl wrapper
+# chunk of bibs - data.bn.org.pl wrapper - main endpoint
 @app.route('/api/{identifier_type}/bibs')
 class BibChunkEnrichedWithIds(HTTPEndpoint):
     async def get(self, request):
         identifier_type = request.path_params['identifier_type']
         bib_chunk_object = BibliographicRecordsChunk(
-            request.query_params, local_auth_index, local_bib_index, identifier_type)
+            request.query_params, local_auth_index, identifier_type)
         return Response(bib_chunk_object.xml_processed_chunk, media_type='application/xml')
 
-
-@app.route('/api/bibs/{bib_id}')
-class BibSingle(HTTPEndpoint):
-    async def get(self, request):
-        bib_id = request.path_params['bib_id']
-        response = local_bib_index[bib_id]
-        return PlainTextResponse(str(response))
-
-
+# authorities
+# single authority endpoint
 @app.route('/api/authorities/{authority_id}')
 class AuthoritySingle(HTTPEndpoint):
     async def get(self, request):
@@ -59,7 +50,8 @@ class AuthoritySingle(HTTPEndpoint):
         response = local_auth_index[authority_id]
         return PlainTextResponse(str(response))
 
-
+# updater
+# schedule update
 @app.route('/updater/{index_to_update}')
 class IndexUpdater(HTTPEndpoint):
     async def get(self, request):
@@ -71,20 +63,13 @@ class IndexUpdater(HTTPEndpoint):
             else:
                 task = BackgroundTask(do_authority_update, auth_updater, local_auth_index, updater_status)
                 return PlainTextResponse("Rozpoczęto aktualizację.", background=task)
-        if index_to_update == 'bibs':
-            if updater_status.update_in_progress:
-                return PlainTextResponse("Aktualizacja w toku. Spróbuj za chwilę.")
-            else:
-                task = BackgroundTask(do_bib_update, bib_updater, local_bib_index, updater_status)
-                return PlainTextResponse("Rozpoczęto aktualizację.", background=task)
 
-
+# get updater status
 @app.route('/updater/status/')
 class UpdaterStatusView(HTTPEndpoint):
     async def get(self, request):
-        return PlainTextResponse(f'Aktualizacja w toku: {str(updater_status.update_in_progress)}\n'
-                                 f'Ostatnia aktualizacja r. wzorcowych: {str(updater_status.last_auth_update)}\n'
-                                 f'Ostatnia aktualizacja r. bibliograficznych: {str(updater_status.last_bib_update)}\n')
+        return PlainTextResponse(f'Aktualizacja r. wzorcowych w toku: {str(updater_status.update_in_progress)}\n'
+                                 f'Ostatnia aktualizacja: {str(updater_status.last_auth_update)}\n')
 
 
 if __name__ == '__main__':
@@ -99,16 +84,12 @@ if __name__ == '__main__':
 
     root.addHandler(fhandler)
 
-
     # set index source files
-    auth_marc = 'nlp_database/production/authorities-all.marc'
-    bib_marc = 'nlp_database/production/bibs-all.marc'
+    auth_marc = 'nlp_database/test/authorities_test_100.mrc'
 
     local_auth_index = create_authority_index(auth_marc)
-    local_bib_index = create_bib_index(bib_marc)
 
     # create updaters and updater_status
-    bib_updater = updater.bib_updater.BibUpdater()
     auth_updater = AuthorityUpdater()
     updater_status = UpdaterStatus(datetime.utcnow())
 
