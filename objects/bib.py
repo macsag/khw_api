@@ -7,7 +7,7 @@ from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST
 
 
 class BibliographicRecordsChunk(object):
-    def __init__(self, query, auth_index, bib_index, identifier_type):
+    def __init__(self, query, auth_index, identifier_type):
         self.query = query
         self.identifier_type = identifier_type
         self.json_response = self.get_json_response()
