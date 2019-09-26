@@ -15,7 +15,7 @@ class BibliographicRecordsChunk(object):
         self.next_page_for_data_bn = self.get_next_page_for_data_bn()
         self.next_page_for_user = self.create_next_page_for_user()
         self.records_ids = self.get_bibliographic_records_ids_from_data_bn()
-        self.marc_chunk = self.get_bibliographic_records_in_marc_from_local_bib_index(bib_index)
+        self.marc_chunk = self.get_bibliographic_records_in_marc_from_data_bn()
         self.marc_objects_chunk = self.read_marc_from_binary_in_chunks()
         self.marc_processed_objects_chunk = self.batch_process_records(auth_index)
         self.xml_processed_chunk = self.produce_output_xml()
@@ -23,7 +23,7 @@ class BibliographicRecordsChunk(object):
     def get_json_response(self):
         logging.debug(self.query)
         if 'http://data.bn.org.pl/api/bibs.json?{}' not in self.query:
-            processed_query = 'http://data.bn.org.pl/api/bibs.json?{}'.format(self.query)
+            processed_query = f'http://data.bn.org.pl/api/bibs.json?{self.query}'
             logging.debug(processed_query)
         else:
             processed_query = self.query
@@ -44,6 +44,17 @@ class BibliographicRecordsChunk(object):
 
         return records_ids
 
+    def get_bibliographic_records_in_marc_from_data_bn(self):
+        records_ids_length = len(self.records_ids)
+
+        if records_ids_length <= 100:
+            ids_for_query = '%2C'.join(record_id for record_id in self.records_ids)
+            query = f'http://data.bn.org.pl/api/bibs.marc?id={ids_for_query}&amp;limit=100'
+
+            marc_data_chunk = bytearray(requests.get(query).content)
+
+            return marc_data_chunk
+
     def get_next_page_for_data_bn(self):
         return self.json_response['nextPage']
 
@@ -60,21 +71,6 @@ class BibliographicRecordsChunk(object):
             next_page_for_user = ''
 
         return next_page_for_user
-
-    def get_bibliographic_records_in_marc_from_local_bib_index(self, bib_index):
-        marc_data_chunk_list = []
-
-        for record_id in self.records_ids:
-            if record_id in bib_index:
-                marc_data_chunk_list.append(bib_index[record_id])
-
-        logging.debug(marc_data_chunk_list)
-
-        marc_data_chunk_joined_to_one_bytearray = bytearray().join(marc_data_chunk_list)
-
-        logging.debug(marc_data_chunk_joined_to_one_bytearray)
-
-        return marc_data_chunk_joined_to_one_bytearray
 
     def read_marc_from_binary_in_chunks(self):
         marc_objects_chunk = []
@@ -106,6 +102,6 @@ class BibliographicRecordsChunk(object):
 
         joined_to_str = ''.join(rcd for rcd in wrapped_processed_records_in_xml)
 
-        out_xml = '<resp><nextPage>{}</nextPage><bibs>{}</bibs></resp>'.format(self.next_page_for_user, joined_to_str)
+        out_xml = f'<resp><nextPage>{self.next_page_for_user}</nextPage><bibs>{joined_to_str}</bibs></resp>'
 
         return out_xml
