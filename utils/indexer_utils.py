@@ -9,6 +9,18 @@ def get_nlp_id(rcd):
     return rcd.get_fields('001')[0].value()
 
 
+def get_viaf_id(rcd):
+    f_024 = rcd.get_fields('024')
+    if f_024:
+        for f in f_024:
+            s_2 = f.get_subfields('2')
+            if s_2:
+                if s_2[0] == 'viaf':
+                    if f.get_subfields('a'):
+                        return f.get_subfields('a')[0]
+    return None
+
+
 def prepare_dict_of_authority_ids_to_append(rcd):
     mms_id = get_mms_id(rcd)
     nlp_id = get_nlp_id(rcd)
