@@ -22,7 +22,7 @@ from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD
 
 templates = Jinja2Templates(directory='templates')
 
-app = Starlette(debug=False, template_directory='templates')
+app = Starlette(debug=True, template_directory='templates')
 
 
 # homepage
@@ -37,8 +37,7 @@ async def homepage(request):
 class BibChunkEnrichedWithIds(HTTPEndpoint):
     async def get(self, request):
         identifier_type = request.path_params['identifier_type']
-        bib_chunk_object = BibliographicRecordsChunk(
-            request.query_params, local_auth_index, identifier_type)
+        bib_chunk_object = BibliographicRecordsChunk(request.query_params, local_auth_index, identifier_type)
         return Response(bib_chunk_object.xml_processed_chunk, media_type='application/xml')
 
 # authorities
@@ -85,7 +84,7 @@ if __name__ == '__main__':
     root.addHandler(fhandler)
 
     # set index source files
-    auth_marc = 'nlp_database/test/authorities_test_100.mrc'
+    auth_marc = 'nlp_database/test/authorities-all.marc'
 
     local_auth_index = create_authority_index(auth_marc)
 
