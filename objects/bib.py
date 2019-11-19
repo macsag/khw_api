@@ -1,6 +1,10 @@
 import requests
-import logging
-from pymarc import marcxml, MARCReader
+import io
+
+import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
+
+from pymarc import marcxml, parse_xml_to_array
 
 from utils.marc_utils import process_record
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST
@@ -10,53 +14,39 @@ class BibliographicRecordsChunk(object):
     def __init__(self, query, auth_index, identifier_type):
         self.query = query
         self.identifier_type = identifier_type
-        self.json_response = self.get_json_response()
+        self.response_code = None
+        self.marcxml_response_object = self.get_marcxml_response()
+        self.next_page_for_data_bn = None
+        self.next_page_for_user = None
+        self.marc_objects_chunk = None
+        self.marc_processed_objects_chunk = None
+        self.xml_processed_chunk = None
+        self.process_response(auth_index)
 
-        self.next_page_for_data_bn = self.get_next_page_for_data_bn()
-        self.next_page_for_user = self.create_next_page_for_user()
-        self.records_ids = self.get_bibliographic_records_ids_from_data_bn()
-        self.marc_chunk = self.get_bibliographic_records_in_marc_from_data_bn()
-        self.marc_objects_chunk = self.read_marc_from_binary_in_chunks()
-        self.marc_processed_objects_chunk = self.batch_process_records(auth_index)
-        self.xml_processed_chunk = self.produce_output_xml()
-
-    def get_json_response(self):
-        logging.debug(self.query)
-        if 'http://data.bn.org.pl/api/bibs.json?{}' not in self.query:
-            processed_query = f'http://data.bn.org.pl/api/bibs.json?{self.query}'
-            logging.debug(processed_query)
+    def get_marcxml_response(self):
+        if 'http://data.bn.org.pl/api/bibs.marcxml?{}' not in self.query:
+            processed_query = f'http://data.bn.org.pl/api/bibs.marcxml?{self.query}'
         else:
             processed_query = self.query
-            logging.debug(processed_query)
 
         r = requests.get(processed_query)
-        json_chunk = r.json()
-        return json_chunk
+        self.response_code = r.status_code
+        return r
 
-    def get_bibliographic_records_ids_from_data_bn(self):
-        records_ids = []
-
-        for rcd in self.json_response['bibs']:
-            record_id = rcd['marc']['fields'][0]['001']
-            records_ids.append(record_id)
-
-        logging.debug(records_ids)
-
-        return records_ids
-
-    def get_bibliographic_records_in_marc_from_data_bn(self):
-        records_ids_length = len(self.records_ids)
-
-        if records_ids_length <= 100:
-            ids_for_query = '%2C'.join(record_id for record_id in self.records_ids)
-            query = f'http://data.bn.org.pl/api/bibs.marc?id={ids_for_query}&amp;limit=100'
-
-            marc_data_chunk = bytearray(requests.get(query).content)
-
-            return marc_data_chunk
+    def process_response(self, auth_index):
+        if self.response_code == 200:
+            self.next_page_for_data_bn = self.get_next_page_for_data_bn()
+            self.next_page_for_user = self.create_next_page_for_user()
+            self.marc_objects_chunk = self.read_marc_from_bytes_like_marcxml()
+            self.marc_processed_objects_chunk = self.batch_process_records(auth_index)
+            self.xml_processed_chunk = self.produce_output_xml()
 
     def get_next_page_for_data_bn(self):
-        return self.json_response['nextPage']
+        root = ET.fromstring(self.marcxml_response_object.content)
+        if root[0].text:
+            return root[0].text
+        else:
+            return ''
 
     def create_next_page_for_user(self):
         if IS_LOCAL:
@@ -64,44 +54,38 @@ class BibliographicRecordsChunk(object):
         else:
             base = PROD_HOST
         if self.next_page_for_data_bn:
-            query = self.next_page_for_data_bn.split('json?')[1]
+            query = self.next_page_for_data_bn.split('marcxml?')[1]
 
-            next_page_for_user = f'http://{base}/api/{self.identifier_type}/bibs?{query}'
+            next_page_for_user = escape(f'http://{base}/api/{self.identifier_type}/bibs?{query}')
         else:
             next_page_for_user = ''
 
         return next_page_for_user
 
-    def read_marc_from_binary_in_chunks(self):
-        marc_objects_chunk = []
-
-        marc_rdr = MARCReader(self.marc_chunk, to_unicode=True, force_utf8=True, utf8_handling='ignore')
-        for rcd in marc_rdr:
-            marc_objects_chunk.append(rcd)
-
-        logging.debug(marc_objects_chunk)
-
-        return marc_objects_chunk
+    def read_marc_from_bytes_like_marcxml(self):
+        if self.marcxml_response_object.content:
+            return parse_xml_to_array(io.BytesIO(self.marcxml_response_object.content))
+        else:
+            return None
 
     def batch_process_records(self, auth_index):
-        logging.debug(self.identifier_type)
-        processed_records = [process_record(rcd, auth_index, self.identifier_type) for rcd in self.marc_objects_chunk]
-
-        logging.debug(processed_records)
-
-        return processed_records
+        if self.marc_objects_chunk:
+            processed_recs = [process_record(rcd, auth_index, self.identifier_type) for rcd in self.marc_objects_chunk]
+            return processed_recs
+        else:
+            return None
 
     def produce_output_xml(self):
-        wrapped_processed_records_in_xml = []
+        if self.marc_processed_objects_chunk:
+            processed_records_in_xml = []
 
-        for rcd in self.marc_processed_objects_chunk:
-            print(rcd)
-            xmlized_rcd = marcxml.record_to_xml(rcd, namespace=True)
-            wrapped_rcd = '<bib>' + str(xmlized_rcd)[2:-1] + '</bib>'
-            wrapped_processed_records_in_xml.append(wrapped_rcd)
+            for rcd in self.marc_processed_objects_chunk:
+                xmlized_rcd = marcxml.record_to_xml(rcd, namespace=True)
+                processed_records_in_xml.append(str(xmlized_rcd)[2:-1])
 
-        joined_to_str = ''.join(rcd for rcd in wrapped_processed_records_in_xml)
+            joined_to_str = ''.join(rcd for rcd in processed_records_in_xml)
 
-        out_xml = f'<resp><nextPage>{self.next_page_for_user}</nextPage><bibs>{joined_to_str}</bibs></resp>'
-
-        return out_xml
+            out_xml = f'<resp><nextPage>{self.next_page_for_user}</nextPage><collection>{joined_to_str}</collection></resp>'
+            return out_xml
+        else:
+            return f'<resp><nextPage/><collection> </collection></resp>'
