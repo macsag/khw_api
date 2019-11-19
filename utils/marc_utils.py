@@ -1,7 +1,21 @@
+import re
+
 import requests
 from pymarc import MARCReader
 
 from config.indexer_config import FIELDS_TO_CHECK
+
+
+def prepare_name_for_indexing(value):
+    if value:
+        value = ''.join(char.replace('  ', ' ').replace(',', '').replace('.', '') for char in value)
+        match = re.search(r'^\W+', value)
+        if match:
+            value = value[match.span(0)[1]:]
+        match = re.search(r'\W+$', value)
+        if match:
+            value = value[:match.span(0)[0]]
+    return value
 
 
 def get_rid_of_punctuation(string):
@@ -64,19 +78,31 @@ def process_record(marc_record, auth_index, identifier_type):
             raw_objects_flds_list = marc_record.get_fields(fld)
 
             for raw_fld in raw_objects_flds_list:
-                term_to_search = get_rid_of_punctuation(' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
+                term_to_search = prepare_name_for_indexing(' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
                 if term_to_search in auth_index:
-                    identifier = None
+                    single_identifier = None
+                    all_ids = {}
 
                     if identifier_type == 'nlp_id':
-                        identifier = list(auth_index.get(term_to_search).keys())[0]
+                        single_identifier = list(auth_index.get(term_to_search).keys())[0]
                     if identifier_type == 'mms_id':
-                        identifier = list(auth_index.get(term_to_search).values())[0]
+                        single_identifier = list(auth_index.get(term_to_search).values())[0]["mms_id"]
+                    if identifier_type == 'all_ids':
+                        all_ids.update({'nlp_id': list(auth_index.get(term_to_search).keys())[0],
+                                        'mms_id': list(auth_index.get(term_to_search).values())[0]["mms_id"],
+                                        'viaf_id': list(auth_index.get(term_to_search).values())[0]["viaf_id"]})
 
-                    if identifier:
+                    if single_identifier:
                         marc_record.remove_field(raw_fld)
-                        raw_fld.add_subfield('0', identifier)
+                        raw_fld.add_subfield('0', single_identifier)
+                        marc_record.add_ordered_field(raw_fld)
+
+                    if all_ids:
+                        marc_record.remove_field(raw_fld)
+                        for id_type, ident in all_ids.items():
+                            if ident:
+                                raw_fld.add_subfield('0', f'({id_type}){ident}')
                         marc_record.add_ordered_field(raw_fld)
 
     return marc_record
