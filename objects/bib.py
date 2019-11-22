@@ -4,7 +4,8 @@ import io
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
-from pymarc import marcxml, parse_xml_to_array
+from pymarc import marcxml
+from pymarc_patches.xml_handler_patch import parse_xml_to_array_patched
 
 from utils.marc_utils import process_record
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST
@@ -64,7 +65,7 @@ class BibliographicRecordsChunk(object):
 
     def read_marc_from_bytes_like_marcxml(self):
         if self.marcxml_response_object.content:
-            return parse_xml_to_array(io.BytesIO(self.marcxml_response_object.content))
+            return parse_xml_to_array_patched(io.BytesIO(self.marcxml_response_object.content))
         else:
             return None
 
