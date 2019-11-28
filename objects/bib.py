@@ -65,7 +65,7 @@ class BibliographicRecordsChunk(object):
 
     def read_marc_from_bytes_like_marcxml(self):
         if self.marcxml_response_object.content:
-            return parse_xml_to_array_patched(io.BytesIO(self.marcxml_response_object.content))
+            return parse_xml_to_array_patched(io.BytesIO(self.marcxml_response_object.content), normalize_form='NFC')
         else:
             return None
 
@@ -82,11 +82,14 @@ class BibliographicRecordsChunk(object):
 
             for rcd in self.marc_processed_objects_chunk:
                 xmlized_rcd = marcxml.record_to_xml(rcd, namespace=True)
-                processed_records_in_xml.append(str(xmlized_rcd)[2:-1])
+                processed_records_in_xml.append(bytearray(xmlized_rcd))
 
-            joined_to_str = ''.join(rcd for rcd in processed_records_in_xml)
+            joined = bytearray().join(processed_records_in_xml)
 
-            out_xml = f'<resp><nextPage>{self.next_page_for_user}</nextPage><collection>{joined_to_str}</collection></resp>'
-            return out_xml
+            out_xml_beginning = f'<resp><nextPage>{self.next_page_for_user}</nextPage><collection>'.encode('utf-8')
+            out_xml_end = '</collection></resp>'.encode('utf-8')
+            out_xml = bytearray().join([out_xml_beginning, joined, out_xml_end])
+
+            return bytes(out_xml)
         else:
             return f'<resp><nextPage/><collection> </collection></resp>'
