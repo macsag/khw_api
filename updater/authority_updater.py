@@ -1,5 +1,5 @@
 import requests
-from pymarc import parse_xml_to_array
+from pymarc_patches.xml_handler_patch import parse_xml_to_array_patched
 from datetime import datetime, timedelta
 import logging
 import io
@@ -61,7 +61,7 @@ class AuthorityUpdater(object):
             r = requests.get(query)
             if r.status_code == 200:
                 if r.content:
-                    xml_array = parse_xml_to_array(io.BytesIO(r.content))
+                    xml_array = parse_xml_to_array_patched(io.BytesIO(r.content))
                     root = ET.fromstring(r.content)
                     query = escape(root[0].text) if root[0].text else None
                     yield xml_array
