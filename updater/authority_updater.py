@@ -61,7 +61,7 @@ class AuthorityUpdater(object):
             r = requests.get(query)
             if r.status_code == 200:
                 if r.content:
-                    xml_array = parse_xml_to_array_patched(io.BytesIO(r.content))
+                    xml_array = parse_xml_to_array_patched(io.BytesIO(r.content), normalize_form='NFC')
                     root = ET.fromstring(r.content)
                     query = escape(root[0].text) if root[0].text else None
                     yield xml_array
