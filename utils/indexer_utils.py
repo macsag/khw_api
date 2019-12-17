@@ -1,4 +1,7 @@
 import requests
+from typing import Optional
+
+from utils.coordinates_utils import check_defg_034, get_list_of_coords_from_valid_marc, convert_to_bbox
 
 
 def get_mms_id(rcd):
@@ -21,13 +24,16 @@ def get_viaf_id(rcd):
     return None
 
 
-def prepare_dict_of_authority_ids_to_append(rcd):
-    mms_id = get_mms_id(rcd)
-    nlp_id = get_nlp_id(rcd)
-
-    dict_of_ids_to_append = {'mms_id': mms_id, 'nlp_id': nlp_id}
-
-    return dict_of_ids_to_append
+def get_coordinates(rcd) -> Optional[str]:
+    coords_034 = rcd.get_fields('034')[0] if rcd.get_fields('034') else None
+    if coords_034:
+        if check_defg_034(coords_034):
+            try:
+                coords_list = get_list_of_coords_from_valid_marc(coords_034)
+            except ValueError:
+                return None
+            return convert_to_bbox(coords_list)
+    return None
 
 
 def is_data_bn_ok():
