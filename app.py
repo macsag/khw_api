@@ -4,18 +4,20 @@ from datetime import datetime
 import uvicorn
 
 from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import PlainTextResponse, Response, JSONResponse
 from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
 
 from indexer.authority_indexer import create_authority_index
+from indexer.authority_external_ids_indexer import AuthorityExternalIdsIndex
 
 from updater.updater_status import UpdaterStatus
 from updater.authority_updater import AuthorityUpdater
 from updater.background_tasks import do_authority_update
 
 from objects.bib import BibliographicRecordsChunk
+from objects.authority import AuthorityRecordsChunk
 
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
 
@@ -34,20 +36,23 @@ async def homepage(request):
 # bibs
 # chunk of bibs - data.bn.org.pl wrapper - main endpoint
 @app.route('/api/{identifier_type}/bibs')
-class BibChunkEnrichedWithIds(HTTPEndpoint):
+class BibsChunkEnrichedWithIds(HTTPEndpoint):
     async def get(self, request):
         identifier_type = request.path_params['identifier_type']
-        bib_chunk_object = BibliographicRecordsChunk(request.query_params, local_auth_index, identifier_type)
+        bib_chunk_object = BibliographicRecordsChunk(request.query_params, local_auth_index,
+                                                     identifier_type, local_auth_external_ids_index)
         return Response(bib_chunk_object.xml_processed_chunk, media_type='application/xml')
+
 
 # authorities
 # single authority endpoint
-@app.route('/api/authorities/{authority_id}')
-class AuthoritySingle(HTTPEndpoint):
+@app.route('/api/authorities/{authority_ids}')
+class AuthoritiesChunkWithExternalIds(HTTPEndpoint):
     async def get(self, request):
-        authority_id = request.path_params['authority_id']
-        response = local_auth_index[authority_id]
-        return PlainTextResponse(str(response))
+        authority_ids = request.path_params['authority_ids']
+        authorities_chunk_object = AuthorityRecordsChunk(authority_ids, local_auth_index, local_auth_external_ids_index)
+        return JSONResponse(authorities_chunk_object.json_processed_chunk)
+
 
 # updater
 # schedule update
@@ -62,6 +67,7 @@ class IndexUpdater(HTTPEndpoint):
             else:
                 task = BackgroundTask(do_authority_update, auth_updater, local_auth_index, updater_status)
                 return PlainTextResponse("Rozpoczęto aktualizację.", background=task)
+
 
 # get updater status
 @app.route('/updater/status/')
@@ -84,9 +90,12 @@ if __name__ == '__main__':
     root.addHandler(fhandler)
 
     # set index source files
-    auth_marc = 'nlp_database/test/authorities-all.marc'
+    auth_marc = 'nlp_database/production/authorities-all.marc'
 
     local_auth_index = create_authority_index(auth_marc)
+    local_auth_external_ids_index = AuthorityExternalIdsIndex(geonames=True,
+                                                              wikidata=True,
+                                                              orcid=True)
 
     # create updaters and updater_status
     auth_updater = AuthorityUpdater()
