@@ -12,7 +12,7 @@ from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST
 
 
 class BibliographicRecordsChunk(object):
-    def __init__(self, query, auth_index, identifier_type):
+    def __init__(self, query, auth_index, identifier_type, auth_external_ids_index):
         self.query = query
         self.identifier_type = identifier_type
         self.response_code = None
@@ -22,7 +22,7 @@ class BibliographicRecordsChunk(object):
         self.marc_objects_chunk = None
         self.marc_processed_objects_chunk = None
         self.xml_processed_chunk = None
-        self.process_response(auth_index)
+        self.process_response(auth_index, auth_external_ids_index)
 
     def get_marcxml_response(self):
         if 'http://data.bn.org.pl/api/bibs.marcxml?{}' not in self.query:
@@ -34,12 +34,12 @@ class BibliographicRecordsChunk(object):
         self.response_code = r.status_code
         return r
 
-    def process_response(self, auth_index):
+    def process_response(self, auth_index, auth_external_ids_index):
         if self.response_code == 200:
             self.next_page_for_data_bn = self.get_next_page_for_data_bn()
             self.next_page_for_user = self.create_next_page_for_user()
             self.marc_objects_chunk = self.read_marc_from_bytes_like_marcxml()
-            self.marc_processed_objects_chunk = self.batch_process_records(auth_index)
+            self.marc_processed_objects_chunk = self.batch_process_records(auth_index, auth_external_ids_index)
             self.xml_processed_chunk = self.produce_output_xml()
 
     def get_next_page_for_data_bn(self):
@@ -69,9 +69,12 @@ class BibliographicRecordsChunk(object):
         else:
             return None
 
-    def batch_process_records(self, auth_index):
+    def batch_process_records(self, auth_index, auth_external_ids_index):
         if self.marc_objects_chunk:
-            processed_recs = [process_record(rcd, auth_index, self.identifier_type) for rcd in self.marc_objects_chunk]
+            processed_recs = [process_record(rcd,
+                                             auth_index,
+                                             self.identifier_type,
+                                             auth_external_ids_index) for rcd in self.marc_objects_chunk]
             return processed_recs
         else:
             return None
@@ -92,4 +95,4 @@ class BibliographicRecordsChunk(object):
 
             return bytes(out_xml)
         else:
-            return f'<resp><nextPage/><collection> </collection></resp>'
+            return f'<resp><nextPage/><collection> </collection></resp>'.encode('utf-8')
