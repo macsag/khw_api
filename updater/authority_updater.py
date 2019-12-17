@@ -7,7 +7,7 @@ import io
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
-from utils.indexer_utils import get_nlp_id, get_mms_id, get_viaf_id, is_data_bn_ok
+from utils.indexer_utils import get_nlp_id, get_mms_id, get_viaf_id, get_coordinates, is_data_bn_ok
 from utils.marc_utils import prepare_name_for_indexing
 from utils.updater_utils import get_nlp_id_from_json
 
@@ -78,6 +78,7 @@ class AuthorityUpdater(object):
                             mms_id = get_mms_id(rcd)
                             nlp_id = get_nlp_id(rcd)
                             viaf_id = get_viaf_id(rcd)
+                            coordinates = get_coordinates(rcd)
 
                             if nlp_id:
 
@@ -95,18 +96,27 @@ class AuthorityUpdater(object):
                                             logging.debug(f'Usunięto zestaw id z (mod): {old_heading}')
 
                                             # set new ids
-                                            authority_index.setdefault(heading, {}).update({nlp_id: {'mms_id': mms_id, 'viaf_id': viaf_id}})
+                                            authority_index.setdefault(heading,
+                                                                       {}).update({nlp_id: {'mms_id': mms_id,
+                                                                                            'viaf_id': viaf_id,
+                                                                                            'coords': coordinates}})
                                             break
                                         else:  # there is only one dict of ids
                                             authority_index.pop(old_heading, None)  # delete entry completely
                                             logging.debug(f'Usunięto hasło całkowicie (mod): {old_heading}')
 
                                             # set new ids
-                                            authority_index.setdefault(heading, {}).update({nlp_id: {'mms_id': mms_id, 'viaf_id': viaf_id}})
+                                            authority_index.setdefault(heading,
+                                                                       {}).update({nlp_id: {'mms_id': mms_id,
+                                                                                            'viaf_id': viaf_id,
+                                                                                            'coords': coordinates}})
                                             break
                                 else:  # rcd is new and it has to be indexed
                                     authority_index[nlp_id] = heading
-                                    authority_index.setdefault(heading, {}).update({nlp_id: {'mms_id': mms_id, 'viaf_id': viaf_id}})
+                                    authority_index.setdefault(heading,
+                                                               {}).update({nlp_id: {'mms_id': mms_id,
+                                                                                    'viaf_id': viaf_id,
+                                                                                    'coords': coordinates}})
                                     logging.debug(f'Dodano nowe hasło (new): {heading}')
                                     break
 
