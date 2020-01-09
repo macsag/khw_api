@@ -8,6 +8,7 @@ from starlette.responses import PlainTextResponse, Response, JSONResponse
 from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
+from starlette.staticfiles import StaticFiles
 
 from indexer.authority_indexer import create_authority_index
 from indexer.authority_external_ids_indexer import AuthorityExternalIdsIndex
@@ -18,6 +19,7 @@ from updater.background_tasks import do_authority_update
 
 from objects.bib import BibliographicRecordsChunk
 from objects.authority import AuthorityRecordsChunk
+from objects.polona_lod import PolonaLodRecord
 
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
 
@@ -25,6 +27,7 @@ from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD
 templates = Jinja2Templates(directory='templates')
 
 app = Starlette(debug=True, template_directory='templates')
+app.mount('/static', StaticFiles(directory='static'), name='static')
 
 
 # homepage
@@ -52,6 +55,30 @@ class AuthoritiesChunkWithExternalIds(HTTPEndpoint):
         authority_ids = request.path_params['authority_ids']
         authorities_chunk_object = AuthorityRecordsChunk(authority_ids, local_auth_index, local_auth_external_ids_index)
         return JSONResponse(authorities_chunk_object.json_processed_chunk)
+
+
+# polona-lod
+# html endpoint for polona.pl
+# aggregates authority external ids for single bib record
+# and presents them with some additional context from NLP descriptors and wikidata SPARQL endpoint
+@app.route('/polona-lod/{bib_nlp_id}')
+class PolonaLodFront(HTTPEndpoint):
+    async def get(self, request):
+        bib_nlp_id = request.path_params['bib_nlp_id']
+        polona_back = PolonaLodRecord(bib_nlp_id, local_auth_index, local_auth_external_ids_index)
+        polona_json = polona_back.get_json()
+        return templates.TemplateResponse('polona-lod.html', {'request': request,
+                                                              'bib_nlp_id': bib_nlp_id,
+                                                              'polona_json': polona_json})
+
+# json endpoint for polona.pl
+@app.route('/api/polona-lod/{bib_nlp_id}')
+class PolonaLodAPI(HTTPEndpoint):
+    async def get(self, request):
+        bib_nlp_id = request.path_params['bib_nlp_id']
+        polona_back = PolonaLodRecord(bib_nlp_id, local_auth_index, local_auth_external_ids_index)
+        polona_json = polona_back.get_json()
+        return JSONResponse(polona_json)
 
 
 # updater
