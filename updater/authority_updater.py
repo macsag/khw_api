@@ -74,20 +74,26 @@ class AuthorityUpdater(object):
                 if rcd:
                     for fld in AUTHORITY_INDEX_FIELDS:
                         if fld in rcd:
-                            heading = prepare_name_for_indexing(rcd.get_fields(fld)[0].value())
+                            heading_full = rcd.get_fields(fld)[0].value()
+                            heading_to_index = prepare_name_for_indexing(heading_full)
                             mms_id = get_mms_id(rcd)
                             nlp_id = get_nlp_id(rcd)
                             viaf_id = get_viaf_id(rcd)
                             coordinates = get_coordinates(rcd)
 
+                            to_update = {nlp_id: {'mms_id': mms_id,
+                                                  'viaf_id': viaf_id,
+                                                  'coords': coordinates,
+                                                  'heading': heading_full}}
+
                             if nlp_id:
 
                                 if nlp_id in authority_index:  # rcd is old and already indexed
                                     old_heading = authority_index.get(nlp_id)
-                                    if old_heading == heading:  # heading wasn't modified - break and continue
+                                    if old_heading == heading_to_index:  # heading wasn't modified - break and continue
                                         break
                                     else:  # heading was modified
-                                        authority_index[nlp_id] = heading  # set new heading for this id
+                                        authority_index[nlp_id] = heading_to_index  # set new heading for this id
 
                                         old_heading_ids = authority_index[old_heading]  # get ref to old heading ids
 
@@ -96,28 +102,22 @@ class AuthorityUpdater(object):
                                             logging.debug(f'Usunięto zestaw id z (mod): {old_heading}')
 
                                             # set new ids
-                                            authority_index.setdefault(heading,
-                                                                       {}).update({nlp_id: {'mms_id': mms_id,
-                                                                                            'viaf_id': viaf_id,
-                                                                                            'coords': coordinates}})
+                                            authority_index.setdefault(heading_to_index,
+                                                                       {}).update(to_update)
                                             break
                                         else:  # there is only one dict of ids
                                             authority_index.pop(old_heading, None)  # delete entry completely
                                             logging.debug(f'Usunięto hasło całkowicie (mod): {old_heading}')
 
                                             # set new ids
-                                            authority_index.setdefault(heading,
-                                                                       {}).update({nlp_id: {'mms_id': mms_id,
-                                                                                            'viaf_id': viaf_id,
-                                                                                            'coords': coordinates}})
+                                            authority_index.setdefault(heading_to_index,
+                                                                       {}).update(to_update)
                                             break
                                 else:  # rcd is new and it has to be indexed
-                                    authority_index[nlp_id] = heading
-                                    authority_index.setdefault(heading,
-                                                               {}).update({nlp_id: {'mms_id': mms_id,
-                                                                                    'viaf_id': viaf_id,
-                                                                                    'coords': coordinates}})
-                                    logging.debug(f'Dodano nowe hasło (new): {heading}')
+                                    authority_index[nlp_id] = heading_to_index
+                                    authority_index.setdefault(heading_to_index,
+                                                               {}).update(to_update)
+                                    logging.debug(f'Dodano nowe hasło (new): {heading_to_index}')
                                     break
 
     @staticmethod
