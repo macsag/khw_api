@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/custom_styling.css') }}">
+    <title>{{ bib_nlp_id }}</title>
+  </head>
+  <body>
+  <div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">polona.pl - Linked Open Data</h1>
+    <p class="lead">Otoczenie semantyczne obiektu nr {{ bib_nlp_id }}.</p>
+  </div>
+  <div class="container">
+    <div class="card-columns">
+      {% for semantic_card_type, semantic_card in polona_json.items() %}
+      {% for semantic_card_term, semantic_card_ids in semantic_card.items() %}
+      <div class="card shadow-sm text-center">
+        <div class="card-header">
+          <h4 class="my-0 font-weight-normal">{{ semantic_card_type }}</h4>
+        </div>
+        <div class="card-body">
+          <h1 class="card-title pricing-card-title">{{ semantic_card_term }}</h1>
+          <ul class="list-unstyled mt-3 mb-4">
+            {% for semantic_card_id_name, semantic_card_id_link in semantic_card_ids.items() %}
+            <li>{{ semantic_card_id_name }}<br>
+              <a target="_blank" rel="noopener noreferrer" href="{{ semantic_card_id_link.link }}">{{ semantic_card_id_link.display }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+  <script src="{{ url_for('static', path='/js/jquery-3.4.1.min.js') }}"></script>
+  <script src="{{ url_for('static', path='/js/bootstrap.bundle.min.js') }}"></script>
+  </body>
+</html>
