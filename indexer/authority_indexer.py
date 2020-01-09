@@ -21,7 +21,8 @@ def create_authority_index(data):
         for rcd in tqdm(rdr):
             for fld in AUTHORITY_INDEX_FIELDS:
                 if fld in rcd:
-                    heading = prepare_name_for_indexing(rcd.get_fields(fld)[0].value())
+                    heading_full = rcd.get_fields(fld)[0].value()
+                    heading_to_index = prepare_name_for_indexing(heading_full)
                     nlp_id = get_nlp_id(rcd)
                     mms_id = get_mms_id(rcd)
                     viaf_id = get_viaf_id(rcd)
@@ -30,11 +31,12 @@ def create_authority_index(data):
                     serialized_to_dict = {}
                     serialized_to_dict.update({nlp_id: {'mms_id': mms_id,
                                                         'viaf_id': viaf_id,
-                                                        'coords': coordinates}})
+                                                        'coords': coordinates,
+                                                        'heading': heading_full}})
 
-                    authority_index.setdefault(heading, {}).update(serialized_to_dict)
-                    authority_index[nlp_id] = heading
-                    logging.debug(f'Zaindeksowano: {heading} | {authority_index[heading]}')
-                    logging.debug(f'Zaindeksowano: {nlp_id} | {heading}')
+                    authority_index.setdefault(heading_to_index, {}).update(serialized_to_dict)
+                    authority_index[nlp_id] = heading_to_index
+                    logging.debug(f'Zaindeksowano: {heading_to_index} | {authority_index[heading_to_index]}')
+                    logging.debug(f'Zaindeksowano: {nlp_id} | {heading_to_index}')
 
     return authority_index
