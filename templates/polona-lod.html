@@ -5,13 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/custom_styling.css') }}">
-    <title>{{ bib_nlp_id }}</title>
+    <title> polona.pl LOD - {{ bib_nlp_id }}</title>
   </head>
   <body>
   <div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
     <h1 class="display-4">polona.pl - Linked Open Data</h1>
+    {% if polona_json %}
     <p class="lead">Otoczenie semantyczne obiektu nr {{ bib_nlp_id }}.</p>
+    {% else %}
+    <p class="lead">Nie znaleziono obiektu o nr {{ bib_nlp_id }}.</p>
+    {% endif %}
+
   </div>
+  {% if polona_json %}
   <div class="container">
     <div class="card-columns">
       {% for semantic_card_type, semantic_card in polona_json.items() %}
@@ -34,6 +40,7 @@
       {% endfor %}
     </div>
   </div>
+  {% endif %}
   <script src="{{ url_for('static', path='/js/jquery-3.4.1.min.js') }}"></script>
   <script src="{{ url_for('static', path='/js/bootstrap.bundle.min.js') }}"></script>
   </body>
