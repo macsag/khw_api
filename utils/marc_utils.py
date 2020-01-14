@@ -27,6 +27,21 @@ def get_marc_bibliographic_data_from_data_bn(records_ids):
         return result
 
 
+def normalize_nlp_id(nlp_id: str) -> str:
+    if len(nlp_id) == 14 and nlp_id[1] in ['0', '1']:
+        return nlp_id
+    if len(nlp_id) == 7 and not nlp_id[0] == 'b':
+        return f'b000000{nlp_id}'
+    if len(nlp_id) == 8 and nlp_id[0] == 'b':
+        return f'b000000{nlp_id[1:]}'
+    if len(nlp_id) == 8 and not nlp_id[0] == 'b':
+        return f'b000000{nlp_id[:-1]}'
+    if len(nlp_id) == 9 and nlp_id[0] == 'b':
+        return f'b000000{nlp_id[1:-1]}'
+    else:
+        return nlp_id
+
+
 def process_record(marc_record, auth_index, identifier_type, auth_external_ids_index):
     """
     Main processing loop for adding authority identifiers to bibliographic record.
