@@ -27,37 +27,44 @@ class PolonaLodRecord(object):
 
     def get_single_marc_bib_record_from_data_bn(self) -> Optional[bytes]:
         query = f'http://data.bn.org.pl/api/bibs.marc?id={self.bib_nlp_id}'
-        return bytes(requests.get(query).content)
+        r = requests.get(query)
+        return bytes(r.content) if r.status_code == 200 else None
 
-    def read_single_marc_record_from_binary(self) -> Record:
-        marc_rdr = MARCReader(self.bib_bytes, to_unicode=True, force_utf8=True, utf8_handling='ignore', permissive=True)
-        for rcd in marc_rdr:
-            return rcd
+    def read_single_marc_record_from_binary(self) -> Optional[Record]:
+        if self.bib_bytes:
+            marc_rdr = MARCReader(self.bib_bytes, to_unicode=True, force_utf8=True, utf8_handling='ignore', permissive=True)
+            for rcd in marc_rdr:
+                return rcd
+        else:
+            return None
 
     def extract_selected_authorities_from_record(self, auth_index, auth_external_ids_index):
         extracted_authorities = {}
 
-        for marc_field_and_subfields in FIELDS_TO_CHECK:
-            fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
+        if self.bib_pymarc_record:
 
-            if fld in self.bib_pymarc_record:
-                raw_objects_flds_list = self.bib_pymarc_record.get_fields(fld)
+            for marc_field_and_subfields in FIELDS_TO_CHECK:
+                fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
 
-                for raw_fld in raw_objects_flds_list:
-                    term_to_search = prepare_name_for_indexing(
-                        ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
+                if fld in self.bib_pymarc_record:
+                    raw_objects_flds_list = self.bib_pymarc_record.get_fields(fld)
 
-                    single_extracted_authority = self.get_authorities_ids_from_internal_db(term_to_search,
-                                                                                           auth_index,
-                                                                                           auth_external_ids_index)
+                    for raw_fld in raw_objects_flds_list:
+                        term_to_search = prepare_name_for_indexing(
+                            ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
-                    if single_extracted_authority:
-                        extracted_authorities.setdefault(FIELDS_TO_NAT_LANG.get(fld),
-                                                         {}).setdefault(term_to_search,
-                                                                        {}).update(single_extracted_authority)
+                        single_extracted_authority = self.get_authorities_ids_from_internal_db(term_to_search,
+                                                                                               auth_index,
+                                                                                               auth_external_ids_index)
 
-        print(extracted_authorities)
-        return extracted_authorities if extracted_authorities else None
+                        if single_extracted_authority:
+                            extracted_authorities.setdefault(FIELDS_TO_NAT_LANG.get(fld),
+                                                             {}).setdefault(term_to_search,
+                                                                            {}).update(single_extracted_authority)
+
+            return extracted_authorities if extracted_authorities else None
+        else:
+            return None
 
     @staticmethod
     def get_authorities_ids_from_internal_db(term_to_search, auth_index, auth_external_ids_index):
@@ -83,51 +90,53 @@ class PolonaLodRecord(object):
 
     def convert_authorities_to_polona_json(self):
         converted_json = {}
-        for auth_role, auth in self.extracted_authorities.items():
-            for auth_name, auth_ids in auth.items():
-                heading = auth_ids.get('heading')
-                for auth_id_type, auth_id in auth_ids.items():
-                    if auth_id_type == 'nlp_id':
-                        to_update = {'display': auth_id,
-                                     'link': f'https://data.bn.org.pl/api/authorities.marcxml?id={auth_id}'}
-                        converted_json.setdefault(auth_role,
-                                                  {}).setdefault(heading,
-                                                                 {}).setdefault('Identyfikator BN',
-                                                                                {}).update(to_update)
-                    if auth_id_type == 'viaf_uri' and auth_id:
-                        to_update = {'display': auth_id,
-                                     'link': auth_id}
-                        converted_json.setdefault(auth_role,
-                                                  {}).setdefault(heading,
-                                                                 {}).setdefault('Identyfikator VIAF (URI)',
-                                                                                {}).update(to_update)
-                    if auth_id_type == 'wikidata_uri' and auth_id:
-                        to_update = {'display': auth_id,
-                                     'link': auth_id}
-                        converted_json.setdefault(auth_role,
-                                                  {}).setdefault(heading,
-                                                                 {}).setdefault('Identyfikator Wikidata (URI)',
-                                                                                {}).update(to_update)
-                    if auth_id_type == 'coords' and auth_id:
-                        parsed_coords = auth_id.split(',')
-                        lat = parsed_coords[1]
-                        lon = parsed_coords[0]
 
-                        to_update = {'display': f'długość: {lon}, szerokość: {lat}',
-                                     'link': f'http://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=6'}
-                        converted_json.setdefault(auth_role,
-                                                  {}).setdefault(heading,
-                                                                 {}).setdefault('Współrzędne geograficzne',
-                                                                                {}).update(to_update)
-                    if auth_id_type == 'geonames_uri' and auth_id:
-                        to_update = {'display': auth_id,
-                                     'link': auth_id}
-                        converted_json.setdefault(auth_role,
-                                                  {}).setdefault(heading,
-                                                                 {}).setdefault('Identyfikator Geonames (URI)',
-                                                                                {}).update(to_update)
+        if self.extracted_authorities:
+
+            for auth_role, auth in self.extracted_authorities.items():
+                for auth_name, auth_ids in auth.items():
+                    heading = auth_ids.get('heading')
+                    for auth_id_type, auth_id in auth_ids.items():
+                        if auth_id_type == 'nlp_id':
+                            to_update = {'display': auth_id,
+                                         'link': f'https://data.bn.org.pl/api/authorities.marcxml?id={auth_id}'}
+                            converted_json.setdefault(auth_role,
+                                                      {}).setdefault(heading,
+                                                                     {}).setdefault('Identyfikator BN',
+                                                                                    {}).update(to_update)
+                        if auth_id_type == 'viaf_uri' and auth_id:
+                            to_update = {'display': auth_id,
+                                         'link': auth_id}
+                            converted_json.setdefault(auth_role,
+                                                      {}).setdefault(heading,
+                                                                     {}).setdefault('Identyfikator VIAF (URI)',
+                                                                                    {}).update(to_update)
+                        if auth_id_type == 'wikidata_uri' and auth_id:
+                            to_update = {'display': auth_id,
+                                         'link': auth_id}
+                            converted_json.setdefault(auth_role,
+                                                      {}).setdefault(heading,
+                                                                     {}).setdefault('Identyfikator Wikidata (URI)',
+                                                                                    {}).update(to_update)
+                        if auth_id_type == 'coords' and auth_id:
+                            parsed_coords = auth_id.split(',')
+                            lat = parsed_coords[1]
+                            lon = parsed_coords[0]
+
+                            to_update = {'display': f'długość: {lon}, szerokość: {lat}',
+                                         'link': f'http://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=6'}
+                            converted_json.setdefault(auth_role,
+                                                      {}).setdefault(heading,
+                                                                     {}).setdefault('Współrzędne geograficzne',
+                                                                                    {}).update(to_update)
+                        if auth_id_type == 'geonames_uri' and auth_id:
+                            to_update = {'display': auth_id,
+                                         'link': auth_id}
+                            converted_json.setdefault(auth_role,
+                                                      {}).setdefault(heading,
+                                                                     {}).setdefault('Identyfikator Geonames (URI)',
+                                                                                    {}).update(to_update)
         return converted_json
 
     def get_json(self):
-        print(self.converted_json)
         return self.converted_json
