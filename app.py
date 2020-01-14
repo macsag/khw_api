@@ -21,12 +21,14 @@ from objects.bib import BibliographicRecordsChunk
 from objects.authority import AuthorityRecordsChunk
 from objects.polona_lod import PolonaLodRecord
 
+from utils.marc_utils import normalize_nlp_id
+
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
 
 
 templates = Jinja2Templates(directory='templates')
 
-app = Starlette(debug=True, template_directory='templates')
+app = Starlette(debug=False, template_directory='templates')
 app.mount('/static', StaticFiles(directory='static'), name='static')
 
 
@@ -60,11 +62,11 @@ class AuthoritiesChunkWithExternalIds(HTTPEndpoint):
 # polona-lod
 # html endpoint for polona.pl
 # aggregates authority external ids for single bib record
-# and presents them with some additional context from NLP descriptors and wikidata SPARQL endpoint
+# and presents them with some additional context from NLP descriptors
 @app.route('/polona-lod/{bib_nlp_id}')
 class PolonaLodFront(HTTPEndpoint):
     async def get(self, request):
-        bib_nlp_id = request.path_params['bib_nlp_id']
+        bib_nlp_id = normalize_nlp_id(request.path_params['bib_nlp_id'])
         polona_back = PolonaLodRecord(bib_nlp_id, local_auth_index, local_auth_external_ids_index)
         polona_json = polona_back.get_json()
         return templates.TemplateResponse('polona-lod.html', {'request': request,
@@ -75,7 +77,7 @@ class PolonaLodFront(HTTPEndpoint):
 @app.route('/api/polona-lod/{bib_nlp_id}')
 class PolonaLodAPI(HTTPEndpoint):
     async def get(self, request):
-        bib_nlp_id = request.path_params['bib_nlp_id']
+        bib_nlp_id = normalize_nlp_id(request.path_params['bib_nlp_id'])
         polona_back = PolonaLodRecord(bib_nlp_id, local_auth_index, local_auth_external_ids_index)
         polona_json = polona_back.get_json()
         return JSONResponse(polona_json)
