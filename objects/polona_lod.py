@@ -32,7 +32,11 @@ class PolonaLodRecord(object):
 
     def read_single_marc_record_from_binary(self) -> Optional[Record]:
         if self.bib_bytes:
-            marc_rdr = MARCReader(self.bib_bytes, to_unicode=True, force_utf8=True, utf8_handling='ignore', permissive=True)
+            marc_rdr = MARCReader(self.bib_bytes,
+                                  to_unicode=True,
+                                  force_utf8=True,
+                                  utf8_handling='ignore',
+                                  permissive=True)
             for rcd in marc_rdr:
                 return rcd
         else:
