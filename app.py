@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 
 import uvicorn
@@ -17,26 +16,27 @@ from objects.bib import BibliographicRecordsChunk
 from objects.authority import AuthorityRecordsChunk
 from objects.polona_lod import PolonaLodRecord
 from utils.marc_utils import normalize_nlp_id
+from applog.utils import read_logging_config, setup_logging
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
 
-# set logging
-root_logger = logging.getLogger()
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-file_fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-fhandler = logging.FileHandler('khw_log.log', 'a', encoding='utf-8')
-fhandler.setFormatter(file_fmt)
-fhandler.setLevel(logging.INFO)
-
-root_logger.addHandler(fhandler)
-uvicorn_logger = logging.getLogger('uvicorn')
-uvicorn_logger.addHandler(fhandler)
-
+# setup logging
+# due to some unexpected behaviour of unicorn logging, logging is being set up twice on purpose
+# before the app startup
+logconfig_dict = read_logging_config('applog/logging.yml')
+setup_logging(logconfig_dict)
 
 templates = Jinja2Templates(directory='templates')
-
 app = Starlette(debug=False, template_directory='templates')
+
+
+# setup logging
+# and on the app startup
+@app.on_event("startup")
+async def startup():
+    logconfig_dict = read_logging_config('applog/logging.yml')
+    setup_logging(logconfig_dict)
+
 
 # homepage
 @app.route('/')
@@ -78,6 +78,7 @@ class PolonaLodFront(HTTPEndpoint):
         return templates.TemplateResponse('polona-lod.html', {'request': request,
                                                               'bib_nlp_id': bib_nlp_id,
                                                               'polona_json': polona_json})
+
 
 # json endpoint for polona.pl
 @app.route('/api/polona-lod/{bib_nlp_id}')
