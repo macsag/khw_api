@@ -2,35 +2,41 @@ import logging
 from datetime import datetime
 
 import uvicorn
-
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse, Response, JSONResponse
 from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
-from starlette.staticfiles import StaticFiles
 
 from indexer.authority_indexer import create_authority_index
 from indexer.authority_external_ids_indexer import AuthorityExternalIdsIndex
-
 from updater.updater_status import UpdaterStatus
 from updater.authority_updater import AuthorityUpdater
 from updater.background_tasks import do_authority_update
-
 from objects.bib import BibliographicRecordsChunk
 from objects.authority import AuthorityRecordsChunk
 from objects.polona_lod import PolonaLodRecord
-
 from utils.marc_utils import normalize_nlp_id
-
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
+
+# set logging
+root_logger = logging.getLogger()
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+file_fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+fhandler = logging.FileHandler('khw_log.log', 'a', encoding='utf-8')
+fhandler.setFormatter(file_fmt)
+fhandler.setLevel(logging.INFO)
+
+root_logger.addHandler(fhandler)
+uvicorn_logger = logging.getLogger('uvicorn')
+uvicorn_logger.addHandler(fhandler)
 
 
 templates = Jinja2Templates(directory='templates')
 
 app = Starlette(debug=False, template_directory='templates')
-app.mount('/static', StaticFiles(directory='static'), name='static')
-
 
 # homepage
 @app.route('/')
@@ -107,17 +113,6 @@ class UpdaterStatusView(HTTPEndpoint):
 
 
 if __name__ == '__main__':
-    # set logging
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-    file_fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    root = logging.getLogger()
-
-    fhandler = logging.FileHandler('khw_log.log', 'a', encoding='utf-8')
-    fhandler.setFormatter(file_fmt)
-
-    root.addHandler(fhandler)
-
     # set index source files
     auth_marc = 'nlp_database/production/authorities-all.marc'
 
