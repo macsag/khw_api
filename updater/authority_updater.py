@@ -42,7 +42,7 @@ class AuthorityUpdater(object):
             query_addr_marcxml = 'http://data.bn.org.pl/api/authorities.marcxml'
 
             # update authority records in authority index by record id (updates entries by record id and heading)
-            logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych...')
+            logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych.')
             updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
             self.update_updated_records_in_authority_index(updated_query, authority_index)
 
@@ -51,13 +51,14 @@ class AuthorityUpdater(object):
             deleted_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query)
 
             # delete authority records from authority index by record id (deletes entries by record id and heading)
+            logger.info(f'Rozpoczynam usuwanie rekordów wzorcowych usuniętych.')
             self.remove_deleted_records_from_authority_index(deleted_records_ids, authority_index)
             logger.info("Rekordów wzorcowych usuniętych: {}".format(len(deleted_records_ids)))
 
             # set updater status
             updater_status.update_in_progress = False
             updater_status.last_auth_update = date_to
-            logger.info(f'Zakończono aktualizację rekordów wzorcowych...')
+            logger.info(f'Zakończono aktualizację rekordów wzorcowych.')
             logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {updater_status.update_in_progress}.')
 
     @staticmethod
@@ -70,10 +71,11 @@ class AuthorityUpdater(object):
                     xml_array = parse_xml_to_array_patched(io.BytesIO(r.content), normalize_form='NFC')
                     root = ET.fromstring(r.content)
                     query = escape(root[0].text) if root[0].text else None
-                    counter += 1
-                    logger.info(f'Przekazano do przetworzenia paczkę nr {counter}.')
                     if not query:
-                        logger.info(f'Przetworzono paczek: {counter}.')
+                        logger.info(f'Brak rekordów do przetworzenia lub koniec przetwarzania.')
+                    else:
+                        counter += 1
+                        logger.info(f'Przekazano do przetworzenia paczkę nr {counter}.')
                     yield xml_array
             else:
                 logger.info(f'Pojawił się problem z data.bn.org.pl. Przerywam przetwarzanie.')
