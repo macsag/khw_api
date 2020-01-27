@@ -16,7 +16,7 @@ def create_authority_index(data):
 
     Available requests: by authority heading; by authority nlp_id.
     """
-    logger.info('Rozpoczęto indeksowanie rekordów wzorcowych...')
+    logger.info('Rozpoczęto indeksowanie rekordów wzorcowych.')
 
     authority_index = {}
     authority_count = 0
