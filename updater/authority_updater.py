@@ -14,6 +14,8 @@ from utils.updater_utils import get_nlp_id_from_json
 from config.indexer_config import AUTHORITY_INDEX_FIELDS
 from config.timedelta_config import TIMEDELTA_CONFIG
 
+logger = logging.getLogger(__name__)
+
 
 class AuthorityUpdater(object):
     def __init__(self):
@@ -25,7 +27,8 @@ class AuthorityUpdater(object):
 
             # set updater status
             updater_status.update_in_progress = True
-            logging.info(f'AUTHORITIES | Zmieniono status updatera na: {updater_status.update_in_progress}.')
+            logger.info(f'Status data.bn.org.pl: OK.')
+            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {updater_status.update_in_progress}.')
 
             # create dates for queries
             date_from = updater_status.last_auth_update - timedelta(days=TIMEDELTA_CONFIG)
@@ -39,24 +42,27 @@ class AuthorityUpdater(object):
             query_addr_marcxml = 'http://data.bn.org.pl/api/authorities.marcxml'
 
             # update authority records in authority index by record id (updates entries by record id and heading)
+            logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych...')
             updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
             self.update_updated_records_in_authority_index(updated_query, authority_index)
 
             # get deleted authority records ids from data.bn.org.pl
             deleted_query = f'{query_addr_json}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&deleted=true&limit=100'
             deleted_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query)
-            logging.info("Rekordów wzorcowych usuniętych: {}".format(len(deleted_records_ids)))
 
             # delete authority records from authority index by record id (deletes entries by record id and heading)
             self.remove_deleted_records_from_authority_index(deleted_records_ids, authority_index)
+            logger.info("Rekordów wzorcowych usuniętych: {}".format(len(deleted_records_ids)))
 
             # set updater status
             updater_status.update_in_progress = False
             updater_status.last_auth_update = date_to
-            logging.info(f'AUTHORITIES | Zmieniono status updatera na: {updater_status.update_in_progress}')
+            logger.info(f'Zakończono aktualizację rekordów wzorcowych...')
+            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {updater_status.update_in_progress}.')
 
     @staticmethod
     def yield_records_from_data_bn_for_authority_index_update(query):
+        counter = 0
         while query:
             r = requests.get(query)
             if r.status_code == 200:
@@ -64,8 +70,13 @@ class AuthorityUpdater(object):
                     xml_array = parse_xml_to_array_patched(io.BytesIO(r.content), normalize_form='NFC')
                     root = ET.fromstring(r.content)
                     query = escape(root[0].text) if root[0].text else None
+                    counter += 1
+                    logger.info(f'Przekazano do przetworzenia paczkę nr {counter}.')
+                    if not query:
+                        logger.info(f'Przetworzono paczek: {counter}.')
                     yield xml_array
             else:
+                logger.info(f'Pojawił się problem z data.bn.org.pl. Przerywam przetwarzanie.')
                 break
 
     def update_updated_records_in_authority_index(self, updated_query, authority_index):
