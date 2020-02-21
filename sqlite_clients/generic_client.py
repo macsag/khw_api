@@ -1,6 +1,5 @@
-import sqlite3
-
 from typing import Callable, Optional
+import sqlite3
 
 
 class GenericClient(object):

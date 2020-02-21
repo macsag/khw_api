@@ -1,10 +1,9 @@
 from typing import Optional
 
-import requests
 from pymarc import MARCReader, Record
+from asyncinit import asyncinit
 
-from utils.marc_utils import prepare_name_for_indexing
-
+from utils.marc_utils import prepare_name_for_indexing, process_record
 from config.indexer_config import FIELDS_TO_CHECK
 
 FIELDS_TO_NAT_LANG = {'100': 'Twórca/współtwórca', '110': 'Twórca/współtwórca', '111': 'Twórca/współtwórca',
@@ -17,18 +16,23 @@ FIELDS_TO_NAT_LANG = {'100': 'Twórca/współtwórca', '110': 'Twórca/współtw
                       '386': 'Przynależność kulturowa', '648': 'Temat: czas', '830': 'Seria/tytuł ujednolicony'}
 
 
+@asyncinit
 class PolonaLodRecord(object):
-    def __init__(self, bib_nlp_id, auth_index, auth_external_ids_index):
+    async def __init__(self, bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext):
         self.bib_nlp_id = bib_nlp_id
-        self.bib_bytes = self.get_single_marc_bib_record_from_data_bn()
+        self.bib_bytes = await self.get_single_marc_bib_record_from_data_bn(aiohttp_session)
         self.bib_pymarc_record = self.read_single_marc_record_from_binary()
-        self.extracted_authorities = self.extract_selected_authorities_from_record(auth_index, auth_external_ids_index)
+        self.extracted_authorities = await self.extract_selected_authorities_from_record(conn_auth_int, conn_auth_ext)
         self.converted_json = self.convert_authorities_to_polona_json()
 
-    def get_single_marc_bib_record_from_data_bn(self) -> Optional[bytes]:
+    async def get_single_marc_bib_record_from_data_bn(self, aiohttp_session) -> Optional[bytes]:
         query = f'http://data.bn.org.pl/api/bibs.marc?id={self.bib_nlp_id}'
-        r = requests.get(query)
-        return bytes(r.content) if r.status_code == 200 else None
+
+        async with aiohttp_session.get(query) as response:
+            if response.status == 200:
+                return await response.read()
+            else:
+                return None
 
     def read_single_marc_record_from_binary(self) -> Optional[Record]:
         if self.bib_bytes:
@@ -42,10 +46,15 @@ class PolonaLodRecord(object):
         else:
             return None
 
-    def extract_selected_authorities_from_record(self, auth_index, auth_external_ids_index):
+    async def extract_selected_authorities_from_record(self, conn_auth_int, conn_auth_ext):
         extracted_authorities = {}
 
         if self.bib_pymarc_record:
+            processed_record = await process_record(self.bib_pymarc_record,
+                                              conn_auth_int,
+                                              'all_ids',
+                                              conn_auth_ext,
+                                              polona=True)
 
             for marc_field_and_subfields in FIELDS_TO_CHECK:
                 fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
@@ -58,34 +67,29 @@ class PolonaLodRecord(object):
                             ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
                         single_extracted_authority = self.get_authorities_ids_from_internal_db(term_to_search,
-                                                                                               auth_index,
-                                                                                               auth_external_ids_index)
+                                                                                               processed_record)
 
                         if single_extracted_authority:
                             extracted_authorities.setdefault(FIELDS_TO_NAT_LANG.get(fld),
                                                              {}).setdefault(term_to_search,
                                                                             {}).update(single_extracted_authority)
 
+
             return extracted_authorities if extracted_authorities else None
         else:
             return None
 
     @staticmethod
-    def get_authorities_ids_from_internal_db(term_to_search, auth_index, auth_external_ids_index):
+    def get_authorities_ids_from_internal_db(term_to_search, processed_record):
         all_ids = {}
 
-        if term_to_search in auth_index:
-            nlp_id = list(auth_index.get(term_to_search).keys())[0]
-
-            all_ids.update({'nlp_id': nlp_id,
-                            'heading': list(auth_index.get(term_to_search).values())[0]["heading"],
-                            'viaf_uri': list(auth_index.get(term_to_search).values())[0]["viaf_id"],
-                            'coords': list(auth_index.get(term_to_search).values())[0]["coords"]})
-
-            ext_ids = auth_external_ids_index.get_ids(nlp_id)
-
-            if ext_ids:
-                all_ids.update(ext_ids)
+        if term_to_search in processed_record:
+            i_ids = processed_record.get(term_to_search).get('internal_ids')
+            if i_ids:
+                all_ids.update(i_ids)
+            e_ids = processed_record.get(term_to_search).get('external_ids')
+            if e_ids:
+                all_ids.update(e_ids)
 
         return all_ids if all_ids else None
 

@@ -1,8 +1,15 @@
+import itertools
+import logging
+import json
 from pathlib import Path
 from typing import List, Optional
 
+import redis
 
 from sqlite_clients.generic_client import GenericClient
+
+
+logger = logging.getLogger(__name__)
 
 
 class AuthorityExternalIdsIndex(object):
@@ -77,7 +84,6 @@ class AuthorityExternalIdsIndex(object):
             genre_wikidata_dict = genre_wikidata_cl.create_index()
             indexes_to_join.append(genre_wikidata_dict)
 
-
         if self.orcid:
             # personal descriptors
             path_to_personal_orcid_db = Path.cwd() / 'sql_databases' / 'personal_orcid_bn.db'
@@ -111,6 +117,16 @@ class AuthorityExternalIdsIndex(object):
                 final_dict.setdefault(nlp_id, {}).update(external_ids_dict)
 
         return final_dict
+
+    def index_in_redis(self):
+        r = redis.Redis(db=1)
+
+        chunk_max_size = 1000
+        keys_to_json = {k: json.dumps(v) for k, v in self.final_index.items()}
+        chunks = [dict(itertools.islice(keys_to_json.items(), i, i + chunk_max_size)) for i in range(0, len(keys_to_json), chunk_max_size)]
+
+        for chunk in chunks:
+            r.mset(chunk)
 
 
 def create_geonames_uri(geonames_id: str) -> str:

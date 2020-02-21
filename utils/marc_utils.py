@@ -1,5 +1,5 @@
 import re
-import requests
+import json
 
 from config.indexer_config import FIELDS_TO_CHECK
 
@@ -14,17 +14,6 @@ def prepare_name_for_indexing(value):
         if match:
             value = value[:match.span(0)[0]]
     return value
-
-
-def get_marc_bibliographic_data_from_data_bn(records_ids):
-    records_ids_length = len(records_ids)
-
-    if records_ids_length <= 100:
-        ids_for_query = '%2C'.join(record_id for record_id in records_ids)
-        query = 'http://data.bn.org.pl/api/bibs.marc?id={}&limit=100'.format(ids_for_query)
-
-        result = bytearray(requests.get(query).content)
-        return result
 
 
 def normalize_nlp_id(nlp_id: str) -> str:
@@ -42,10 +31,8 @@ def normalize_nlp_id(nlp_id: str) -> str:
         return nlp_id
 
 
-def process_record(marc_record, auth_index, identifier_type, auth_external_ids_index):
-    """
-    Main processing loop for adding authority identifiers to bibliographic record.
-    """
+async def get_terms_to_search_and_references_to_raw_flds(marc_record) -> dict:
+    terms_fields_ids = {}
 
     for marc_field_and_subfields in FIELDS_TO_CHECK:
         fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
@@ -54,38 +41,88 @@ def process_record(marc_record, auth_index, identifier_type, auth_external_ids_i
             raw_objects_flds_list = marc_record.get_fields(fld)
 
             for raw_fld in raw_objects_flds_list:
-                term_to_search = prepare_name_for_indexing(' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
+                term_to_search = prepare_name_for_indexing(
+                    ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
-                if term_to_search in auth_index:
-                    single_identifier = None
-                    all_ids = {}
+                terms_fields_ids.setdefault(term_to_search, {}).setdefault('raw_flds', []).append(raw_fld)
 
-                    if identifier_type == 'nlp_id':
-                        single_identifier = list(auth_index.get(term_to_search).keys())[0]
-                    if identifier_type == 'mms_id':
-                        single_identifier = list(auth_index.get(term_to_search).values())[0]["mms_id"]
-                    if identifier_type == 'all_ids':
-                        nlp_id = list(auth_index.get(term_to_search).keys())[0]
+    return terms_fields_ids
 
-                        all_ids.update({'nlp_id': nlp_id,
-                                        'mms_id': list(auth_index.get(term_to_search).values())[0]["mms_id"],
-                                        'viaf_uri': list(auth_index.get(term_to_search).values())[0]["viaf_id"],
-                                        'coords': list(auth_index.get(term_to_search).values())[0]["coords"]})
 
-                        ext_ids = auth_external_ids_index.get_ids(nlp_id)
-                        if ext_ids:
-                            all_ids.update(ext_ids)
+def transform_nlp_id(nlp_id: str) -> str:
+    if len(nlp_id) == 14 and nlp_id[1] == '0':
+        return f'a{calculate_check_digit(nlp_id[7:])}'
+    else:
+        return nlp_id
 
-                    if single_identifier:
-                        marc_record.remove_field(raw_fld)
-                        raw_fld.add_subfield('0', single_identifier)
-                        marc_record.add_ordered_field(raw_fld)
 
-                    if all_ids:
-                        marc_record.remove_field(raw_fld)
-                        for id_type, ident in all_ids.items():
-                            if ident:
-                                raw_fld.add_subfield('0', f'({id_type}){ident}')
-                        marc_record.add_ordered_field(raw_fld)
+def calculate_check_digit(record_id: str) -> str:
+    char_sum = 0
+    i = 2
+    for character in record_id[::-1]:
+        char_sum += int(character) * i
+        i += 1
+    remainder = char_sum % 11
+    check_digit = str(remainder) if remainder != 10 else 'x'
+    return record_id + check_digit
 
-    return marc_record
+
+async def process_record(marc_record, conn_auth_int, identifier_type, conn_auth_ext, polona=False):
+    """
+    Main processing loop for adding authority identifiers to bibliographic record.
+    """
+
+    # get all terms to search for in redis index and get all references to raw flds with these terms
+    terms_fields_ids = await get_terms_to_search_and_references_to_raw_flds(marc_record)
+
+    # get all internal ids (meaning: from original NLP database via data.bn.org.pl) from redis index db=0
+    internal_ids = await conn_auth_int.mget(*list(terms_fields_ids.keys()))
+
+    # add internal ids to terms_fields_ids dict and prepare helper list of tuples for external ids redis query
+    helper_list_for_ext_ids_query = []
+
+    for term, int_ids in zip(list(terms_fields_ids.keys()), internal_ids):
+        if int_ids:
+            fields_ids = terms_fields_ids.get(term)
+            in_json = json.loads(int_ids)
+            fields_ids.setdefault('internal_ids', in_json)
+            helper_list_for_ext_ids_query.append((term, transform_nlp_id(in_json.get('nlp_id'))))
+
+    # add single subfield |0 to fields in marc record by identifier type
+    if identifier_type in ['nlp_id', 'mms_id']:
+        for flds_ids in terms_fields_ids.values():
+            for field in flds_ids.get('raw_flds'):
+                if flds_ids.get('internal_ids'):
+                    field.add_subfield('0', flds_ids.get('internal_ids').get(identifier_type))
+
+    # add multiple subfields |0 to fields in marc record if identifier type == all_ids
+    if identifier_type == 'all_ids':
+        all_ids = {}
+
+        if helper_list_for_ext_ids_query:
+            external_ids = await conn_auth_ext.mget(*[nlp_id for term, nlp_id in helper_list_for_ext_ids_query])
+
+            for term_nlp_id, ext_ids in zip(helper_list_for_ext_ids_query, external_ids):
+                if ext_ids:
+                    fields_ids = terms_fields_ids.get(term_nlp_id[0])
+                    fields_ids.setdefault('external_ids', json.loads(ext_ids))
+
+        for flds_ids in terms_fields_ids.values():
+            for field in flds_ids.get('raw_flds'):
+
+                i_ids = flds_ids.get('internal_ids')
+                if i_ids:
+                    for id_type, ident in i_ids.items():
+                        if ident and id_type != 'heading':
+                            field.add_subfield('0', f'({id_type}){ident}')
+
+                e_ids = flds_ids.get('external_ids')
+                if e_ids:
+                    for id_type, ident in e_ids.items():
+                        if ident:
+                            field.add_subfield('0', f'({id_type}){ident}')
+
+    if polona:
+        return terms_fields_ids
+    else:
+        return marc_record

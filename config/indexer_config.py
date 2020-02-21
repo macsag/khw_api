@@ -1,5 +1,7 @@
 # constants for index configuration
 
+RUN_REDIS_INDEXING_ON_STARTUP = False
+
 # bibliographic record fields to check for authority identifiers
 # tuples (string (marc field), list of strings (marc subfields}]
 

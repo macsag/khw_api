@@ -1,11 +1,14 @@
-import requests
-from pymarc_patches.xml_handler_patch import parse_xml_to_array_patched
-from datetime import datetime, timedelta
+import json
 import logging
 import io
 
+from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
+
+import requests
+
+from pymarc_patches.xml_handler_patch import parse_xml_to_array_patched
 
 from utils.indexer_utils import get_nlp_id, get_mms_id, get_viaf_id, get_coordinates, is_data_bn_ok
 from utils.marc_utils import prepare_name_for_indexing
@@ -14,6 +17,7 @@ from utils.updater_utils import get_nlp_id_from_json
 from config.indexer_config import AUTHORITY_INDEX_FIELDS
 from config.timedelta_config import TIMEDELTA_CONFIG
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +25,7 @@ class AuthorityUpdater(object):
     def __init__(self):
         pass
 
-    def update_authority_index(self, authority_index, updater_status):
+    async def update_authority_index(self, conn_auth_int, updater_status):
         # data.bn.org.pl health check
         if is_data_bn_ok():
 
@@ -43,8 +47,10 @@ class AuthorityUpdater(object):
 
             # update authority records in authority index by record id (updates entries by record id and heading)
             logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych.')
-            updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
-            self.update_updated_records_in_authority_index(updated_query, authority_index)
+            #logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych zaktualizowanych.')
+            #updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
+            #await self.update_updated_records_in_authority_index(updated_query, conn_auth_int)
+            #logger.info(f'Zaktualizowano.')
 
             # get deleted authority records ids from data.bn.org.pl
             deleted_query = f'{query_addr_json}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&deleted=true&limit=100'
@@ -52,8 +58,8 @@ class AuthorityUpdater(object):
 
             # delete authority records from authority index by record id (deletes entries by record id and heading)
             logger.info(f'Rozpoczynam usuwanie rekordów wzorcowych usuniętych.')
-            self.remove_deleted_records_from_authority_index(deleted_records_ids, authority_index)
-            logger.info("Rekordów wzorcowych usuniętych: {}".format(len(deleted_records_ids)))
+            await self.remove_deleted_records_from_authority_index(deleted_records_ids, conn_auth_int)
+            logger.info("Usunięto rekordów: {}".format(len(deleted_records_ids)))
 
             # set updater status
             updater_status.update_in_progress = False
@@ -81,7 +87,7 @@ class AuthorityUpdater(object):
                 logger.info(f'Pojawił się problem z data.bn.org.pl. Przerywam przetwarzanie.')
                 break
 
-    def update_updated_records_in_authority_index(self, updated_query, authority_index):
+    async def update_updated_records_in_authority_index(self, updated_query, conn_auth_int):
         for rcd_array in self.yield_records_from_data_bn_for_authority_index_update(updated_query):
             for rcd in rcd_array:
                 if rcd:
@@ -94,43 +100,33 @@ class AuthorityUpdater(object):
                             viaf_id = get_viaf_id(rcd)
                             coordinates = get_coordinates(rcd)
 
-                            to_update = {nlp_id: {'mms_id': mms_id,
-                                                  'viaf_id': viaf_id,
-                                                  'coords': coordinates,
-                                                  'heading': heading_full}}
+                            to_update = {'nlp_id': nlp_id,
+                                         'mms_id': mms_id,
+                                         'viaf_id': viaf_id,
+                                         'coords': coordinates,
+                                         'heading': heading_full}
+                            json_to_update = json.dumps(to_update)
 
                             if nlp_id:
-
-                                if nlp_id in authority_index:  # rcd is old and already indexed
-                                    old_heading = authority_index.get(nlp_id)
+                                auth_to_update = await conn_auth_int.get(nlp_id)
+                                if auth_to_update:  # rcd is old and already indexed
+                                    auth_to_update_dict = json.loads(auth_to_update)
+                                    old_heading = prepare_name_for_indexing(auth_to_update_dict.get('heading'))
                                     if old_heading == heading_to_index:  # heading wasn't modified - break and continue
-                                        break
+                                        if to_update == auth_to_update_dict:
+                                            break
+                                        else:
+                                            await conn_auth_int.set(nlp_id, json_to_update)
+                                            break
                                     else:  # heading was modified
-                                        authority_index[nlp_id] = heading_to_index  # set new heading for this id
-
-                                        old_heading_ids = authority_index[old_heading]  # get ref to old heading ids
-
-                                        if len(old_heading_ids) > 1:  # there is more than one id for the heading
-                                            old_heading_ids.pop(nlp_id, None)  # delete the obsolete id
-                                            logging.debug(f'Usunięto zestaw id z (mod): {old_heading}')
-
-                                            # set new ids
-                                            authority_index.setdefault(heading_to_index,
-                                                                       {}).update(to_update)
-                                            break
-                                        else:  # there is only one dict of ids
-                                            authority_index.pop(old_heading, None)  # delete entry completely
-                                            logging.debug(f'Usunięto hasło całkowicie (mod): {old_heading}')
-
-                                            # set new ids
-                                            authority_index.setdefault(heading_to_index,
-                                                                       {}).update(to_update)
-                                            break
+                                        await conn_auth_int.delete(old_heading)
+                                        await conn_auth_int.mset(nlp_id, json_to_update,
+                                                                 heading_to_index, json_to_update)
+                                        break
                                 else:  # rcd is new and it has to be indexed
-                                    authority_index[nlp_id] = heading_to_index
-                                    authority_index.setdefault(heading_to_index,
-                                                               {}).update(to_update)
-                                    logging.debug(f'Dodano nowe hasło (new): {heading_to_index}')
+                                    await conn_auth_int.mset(nlp_id, json_to_update,
+                                                             heading_to_index, json_to_update)
+                                    logging.debug(f'Dodano nowe hasło: {heading_to_index}')
                                     break
 
     @staticmethod
@@ -153,14 +149,9 @@ class AuthorityUpdater(object):
         return records_ids
 
     @staticmethod
-    def remove_deleted_records_from_authority_index(records_ids, authority_index):
+    async def remove_deleted_records_from_authority_index(records_ids, conn_auth_int):
         for record_id in records_ids:
-            if record_id in authority_index:
-                heading = authority_index.pop(record_id)
-                heading_ids = authority_index[heading]
-                if len(heading_ids) > 1:
-                    heading_ids.pop(record_id, None)
-                    logging.debug(f'Usunięto zestaw id z (del): {heading}')
-                else:
-                    authority_index.pop(heading, None)
-                    logging.debug(f'Usunięto hasło całkowicie (del): {heading}')
+            auth_to_delete = await conn_auth_int.get(record_id)
+            if auth_to_delete:
+                heading = prepare_name_for_indexing(json.loads(auth_to_delete).get('heading'))
+                await conn_auth_int.delete(heading, record_id)
