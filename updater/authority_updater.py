@@ -23,19 +23,20 @@ logger = logging.getLogger(__name__)
 
 class AuthorityUpdater(object):
     def __init__(self):
-        pass
+        self.update_in_progress = False
+        self.last_auth_update = datetime.utcnow()
 
-    async def update_authority_index(self, conn_auth_int, updater_status):
+    async def update_authority_index(self, aiohttp_session, conn_auth_int):
         # data.bn.org.pl health check
-        if is_data_bn_ok():
+        if await is_data_bn_ok(aiohttp_session):
 
             # set updater status
-            updater_status.update_in_progress = True
+            self.update_in_progress = True
             logger.info(f'Status data.bn.org.pl: OK.')
-            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {updater_status.update_in_progress}.')
+            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {self.update_in_progress}.')
 
             # create dates for queries
-            date_from = updater_status.last_auth_update - timedelta(days=TIMEDELTA_CONFIG)
+            date_from = self.last_auth_update - timedelta(days=TIMEDELTA_CONFIG)
             date_from_iso_z = date_from.isoformat(timespec='seconds') + 'Z'
 
             date_to = datetime.utcnow()
@@ -47,48 +48,50 @@ class AuthorityUpdater(object):
 
             # update authority records in authority index by record id (updates entries by record id and heading)
             logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych.')
-            #logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych zaktualizowanych.')
-            #updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
-            #await self.update_updated_records_in_authority_index(updated_query, conn_auth_int)
-            #logger.info(f'Zaktualizowano.')
+            logger.info(f'Rozpoczynam aktualizację rekordów wzorcowych nowych/zaktualizowanych.')
+            updated_query = f'{query_addr_marcxml}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&limit=100'
+            await self.update_updated_records_in_authority_index(updated_query, aiohttp_session, conn_auth_int)
+            logger.info(f'Zaktualizowano.')
 
             # get deleted authority records ids from data.bn.org.pl
+            logger.info(f'Rozpoczynam usuwanie rekordów wzorcowych usuniętych.')
+            logger.info(f'Pobieram identyfikatory.')
             deleted_query = f'{query_addr_json}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&deleted=true&limit=100'
-            deleted_records_ids = self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query)
+            deleted_records_ids = await self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query, aiohttp_session)
 
             # delete authority records from authority index by record id (deletes entries by record id and heading)
-            logger.info(f'Rozpoczynam usuwanie rekordów wzorcowych usuniętych.')
             await self.remove_deleted_records_from_authority_index(deleted_records_ids, conn_auth_int)
             logger.info("Usunięto rekordów: {}".format(len(deleted_records_ids)))
 
             # set updater status
-            updater_status.update_in_progress = False
-            updater_status.last_auth_update = date_to
+            self.update_in_progress = False
+            self.last_auth_update = date_to
             logger.info(f'Zakończono aktualizację rekordów wzorcowych.')
-            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {updater_status.update_in_progress}.')
+            logger.info(f'Zmieniono status updatera rekordów wzorcowych na: {self.update_in_progress}.')
 
     @staticmethod
-    def yield_records_from_data_bn_for_authority_index_update(query):
+    async def yield_records_from_data_bn_for_authority_index_update(query, aiohttp_session):
         counter = 0
         while query:
-            r = requests.get(query)
-            if r.status_code == 200:
-                if r.content:
-                    xml_array = parse_xml_to_array_patched(io.BytesIO(r.content), normalize_form='NFC')
-                    root = ET.fromstring(r.content)
-                    query = escape(root[0].text) if root[0].text else None
-                    if not query:
-                        logger.info(f'Brak rekordów do przetworzenia lub koniec przetwarzania.')
-                    else:
-                        counter += 1
-                        logger.info(f'Przekazano do przetworzenia paczkę nr {counter}.')
-                    yield xml_array
-            else:
-                logger.info(f'Pojawił się problem z data.bn.org.pl. Przerywam przetwarzanie.')
-                break
+            async with aiohttp_session.get(query) as resp:
+                if resp.status == 200:
+                    binary_content = await resp.read()
+                    if binary_content:
+                        xml_array = parse_xml_to_array_patched(io.BytesIO(binary_content), normalize_form='NFC')
+                        root = ET.fromstring(binary_content.decode())
+                        query = escape(root[0].text) if root[0].text else None
+                        if not query:
+                            logger.info(f'Brak rekordów do przetworzenia lub koniec przetwarzania.')
+                        else:
+                            counter += 1
+                            logger.info(f'Przekazano do przetworzenia paczkę nr {counter}.')
+                        yield xml_array
+                else:
+                    logger.info(f'Pojawił się problem z data.bn.org.pl. Przerywam przetwarzanie.')
+                    break
 
-    async def update_updated_records_in_authority_index(self, updated_query, conn_auth_int):
-        for rcd_array in self.yield_records_from_data_bn_for_authority_index_update(updated_query):
+    async def update_updated_records_in_authority_index(self, updated_query, aiohttp_session, conn_auth_int):
+        async for rcd_array in self.yield_records_from_data_bn_for_authority_index_update(updated_query, aiohttp_session):
             for rcd in rcd_array:
                 if rcd:
                     for fld in AUTHORITY_INDEX_FIELDS:
@@ -105,7 +108,7 @@ class AuthorityUpdater(object):
                                          'viaf_id': viaf_id,
                                          'coords': coordinates,
                                          'heading': heading_full}
-                            json_to_update = json.dumps(to_update)
+                            json_to_update = json.dumps(to_update, ensure_ascii=False)
 
                             if nlp_id:
                                 auth_to_update = await conn_auth_int.get(nlp_id)
@@ -130,21 +133,21 @@ class AuthorityUpdater(object):
                                     break
 
     @staticmethod
-    def get_records_ids_from_data_bn_for_authority_index_update(query):
+    async def get_records_ids_from_data_bn_for_authority_index_update(query, aiohttp_session):
         records_ids = []
 
         while query:
-            r = requests.get(query)
-            if r.status_code == 200:
-                json_chunk = r.json()
+            async with aiohttp_session as resp:
+                if resp.status == 200:
+                    json_chunk = await resp.json()
 
-                for rcd in json_chunk['authorities']:
-                    record_id = get_nlp_id_from_json(rcd)
-                    records_ids.append(record_id)
+                    for rcd in json_chunk['authorities']:
+                        record_id = get_nlp_id_from_json(rcd)
+                        records_ids.append(record_id)
 
-                query = json_chunk['nextPage'] if json_chunk['nextPage'] else None
-            else:
-                break
+                    query = json_chunk['nextPage'] if json_chunk['nextPage'] else None
+                else:
+                    break
 
         return records_ids
 
