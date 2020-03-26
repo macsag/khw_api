@@ -40,8 +40,8 @@ def create_authority_index(data=PATH_TO_DB):
                                           'heading': heading_full}
                     serialized_to_json = json.dumps(serialized_to_dict, ensure_ascii=False)
 
-                    r.mset(heading_to_index, serialized_to_json,
-                           nlp_id, serialized_to_json)
+                    r.mset({heading_to_index: serialized_to_json,
+                           nlp_id: serialized_to_json})
 
                     logger.debug(f'Zaindeksowano: {heading_to_index}.')
 
