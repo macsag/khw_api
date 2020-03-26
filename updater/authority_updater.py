@@ -123,12 +123,12 @@ class AuthorityUpdater(object):
                                             break
                                     else:  # heading was modified
                                         await conn_auth_int.delete(old_heading)
-                                        await conn_auth_int.mset(nlp_id, json_to_update,
-                                                                 heading_to_index, json_to_update)
+                                        await conn_auth_int.mset({nlp_id: json_to_update,
+                                                                 heading_to_index: json_to_update})
                                         break
                                 else:  # rcd is new and it has to be indexed
-                                    await conn_auth_int.mset(nlp_id, json_to_update,
-                                                             heading_to_index, json_to_update)
+                                    await conn_auth_int.mset({nlp_id: json_to_update,
+                                                              heading_to_index: json_to_update})
                                     logging.debug(f'Dodano nowe hasło: {heading_to_index}')
                                     break
 
@@ -157,4 +157,4 @@ class AuthorityUpdater(object):
             auth_to_delete = await conn_auth_int.get(record_id)
             if auth_to_delete:
                 heading = prepare_name_for_indexing(json.loads(auth_to_delete).get('heading'))
-                await conn_auth_int.delete(heading, record_id)
+                await conn_auth_int.delete([heading, record_id])
