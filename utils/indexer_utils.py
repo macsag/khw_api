@@ -36,5 +36,9 @@ def get_coordinates(rcd) -> Optional[str]:
     return None
 
 
-def is_data_bn_ok():
-    return True if requests.get('http://data.bn.org.pl').status_code == 200 else False
+async def is_data_bn_ok(aiohttp_session):
+    async with aiohttp_session.get('http://data.bn.org.pl') as response:
+        if response.status == 200:
+            return True
+        else:
+            return None
