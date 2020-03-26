@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
-import requests
-
 from pymarc_patches.xml_handler_patch import parse_xml_to_array_patched
 
 from utils.indexer_utils import get_nlp_id, get_mms_id, get_viaf_id, get_coordinates, is_data_bn_ok
@@ -57,7 +55,8 @@ class AuthorityUpdater(object):
             logger.info(f'Rozpoczynam usuwanie rekordów wzorcowych usuniętych.')
             logger.info(f'Pobieram identyfikatory.')
             deleted_query = f'{query_addr_json}?updatedDate={date_from_iso_z}%2C{date_to_iso_z}&deleted=true&limit=100'
-            deleted_records_ids = await self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query, aiohttp_session)
+            deleted_records_ids = await self.get_records_ids_from_data_bn_for_authority_index_update(deleted_query,
+                                                                                                     aiohttp_session)
 
             # delete authority records from authority index by record id (deletes entries by record id and heading)
             await self.remove_deleted_records_from_authority_index(deleted_records_ids, conn_auth_int)
@@ -91,7 +90,8 @@ class AuthorityUpdater(object):
                     break
 
     async def update_updated_records_in_authority_index(self, updated_query, aiohttp_session, conn_auth_int):
-        async for rcd_array in self.yield_records_from_data_bn_for_authority_index_update(updated_query, aiohttp_session):
+        async for rcd_array in self.yield_records_from_data_bn_for_authority_index_update(updated_query,
+                                                                                          aiohttp_session):
             for rcd in rcd_array:
                 if rcd:
                     for fld in AUTHORITY_INDEX_FIELDS:
