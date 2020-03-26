@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 import uvicorn
 import aioredis
@@ -11,7 +10,6 @@ from starlette.endpoints import HTTPEndpoint
 from starlette.templating import Jinja2Templates
 from starlette.background import BackgroundTask
 
-from updater.updater_status import UpdaterStatus
 from updater.authority_updater import AuthorityUpdater
 from updater.background_tasks import do_authority_update
 from objects.bib import BibliographicRecordsChunk
@@ -34,8 +32,7 @@ app = Starlette(debug=False, template_directory='templates')
 
 @app.on_event("startup")
 async def startup():
-    # setup logging
-    # and once again on the app startup
+    # setup logging once again on the app startup
     logconfig_dict = read_logging_config('applog/logging.yml')
     setup_logging(logconfig_dict)
 
@@ -51,9 +48,7 @@ async def startup():
 
     # create updaters and updater_status
     global auth_updater
-    global updater_status
     auth_updater = AuthorityUpdater()
-    updater_status = UpdaterStatus(datetime.utcnow())
 
 
 # homepage
@@ -67,13 +62,11 @@ async def homepage(request):
 @app.route('/api/{identifier_type}/bibs')
 class BibsChunkEnrichedWithIds(HTTPEndpoint):
     async def get(self, request):
-        identifier_type = request.path_params['identifier_type']
-
         bib_chunk_object = await BibliographicRecordsChunk(aiohttp_session,
                                                            conn_auth_int,
                                                            conn_auth_ext,
                                                            request.query_params,
-                                                           identifier_type)
+                                                           request.path_params['identifier_type'])
         resp_content = bib_chunk_object.xml_processed_chunk
 
         return Response(resp_content, media_type='application/xml')
@@ -122,25 +115,22 @@ class PolonaLodAPI(HTTPEndpoint):
 
 # updater
 # schedule update
-@app.route('/updater/{index_to_update}')
+@app.route('/updater/authorities')
 class IndexUpdater(HTTPEndpoint):
     async def get(self, request):
-        index_to_update = request.path_params['index_to_update']
-
-        if index_to_update == 'authorities':
-            if updater_status.update_in_progress:
-                return PlainTextResponse("Aktualizacja w toku. Spróbuj za chwilę.")
-            else:
-                task = BackgroundTask(do_authority_update, auth_updater, conn_auth_int, updater_status)
-                return PlainTextResponse("Rozpoczęto aktualizację.", background=task)
+        if auth_updater.update_in_progress:
+            return PlainTextResponse("Aktualizacja w toku. Spróbuj za chwilę.")
+        else:
+            task = BackgroundTask(do_authority_update, auth_updater, aiohttp_session, conn_auth_int)
+            return PlainTextResponse("Rozpoczęto aktualizację.", background=task)
 
 
 # get updater status
 @app.route('/updater/status/')
 class UpdaterStatusView(HTTPEndpoint):
     async def get(self, request):
-        return JSONResponse({'update_in_progress': updater_status.update_in_progress,
-                             'last_update': str(updater_status.last_auth_update)})
+        return JSONResponse({'update_in_progress': auth_updater.update_in_progress,
+                             'last_update': str(auth_updater.last_auth_update)})
 
 
 if __name__ == '__main__':
@@ -148,4 +138,4 @@ if __name__ == '__main__':
     if not IS_LOCAL:
         uvicorn.run('app:app', host=LOC_HOST, port=LOC_PORT)
     else:
-        uvicorn.run('app:app', host=PROD_HOST, port=PROD_PORT, workers=3)
+        uvicorn.run('app:app', host=PROD_HOST, port=PROD_PORT, workers=2)
