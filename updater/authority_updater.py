@@ -137,7 +137,7 @@ class AuthorityUpdater(object):
         records_ids = []
 
         while query:
-            async with aiohttp_session as resp:
+            async with aiohttp_session.get(query) as resp:
                 if resp.status == 200:
                     json_chunk = await resp.json()
 
