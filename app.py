@@ -135,7 +135,7 @@ class UpdaterStatusView(HTTPEndpoint):
 
 if __name__ == '__main__':
 
-    if not IS_LOCAL:
+    if IS_LOCAL:
         uvicorn.run('app:app', host=LOC_HOST, port=LOC_PORT)
     else:
-        uvicorn.run('app:app', host=PROD_HOST, port=PROD_PORT, workers=2)
+        uvicorn.run('app:app', host=PROD_HOST, port=PROD_PORT, workers=3)
