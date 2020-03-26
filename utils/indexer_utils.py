@@ -1,4 +1,3 @@
-import requests
 from typing import Optional
 
 from utils.coordinates_utils import check_defg_034, get_list_of_coords_from_valid_marc, convert_to_bbox
