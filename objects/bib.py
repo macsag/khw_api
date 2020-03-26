@@ -1,6 +1,5 @@
 from typing import Optional
 import io
-import requests
 from asyncinit import asyncinit
 
 import xml.etree.ElementTree as ET
