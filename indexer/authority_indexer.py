@@ -1,5 +1,5 @@
 import logging
-import json
+import ujson
 from pathlib import Path
 
 from tqdm import tqdm
@@ -13,6 +13,12 @@ from utils.marc_utils import prepare_name_for_indexing
 logger = logging.getLogger(__name__)
 
 PATH_TO_DB = Path.cwd() / 'nlp_database' / 'production' / 'authorities-all.marc'
+
+
+def flush_db():
+    r = redis.Redis()
+    r.flushdb()
+    r.close()
 
 
 def create_authority_index(data=PATH_TO_DB):
@@ -38,7 +44,7 @@ def create_authority_index(data=PATH_TO_DB):
                                           'viaf_id': viaf_id,
                                           'coords': coordinates,
                                           'heading': heading_full}
-                    serialized_to_json = json.dumps(serialized_to_dict, ensure_ascii=False)
+                    serialized_to_json = ujson.dumps(serialized_to_dict, ensure_ascii=False)
 
                     r.mset({heading_to_index: serialized_to_json,
                            nlp_id: serialized_to_json})
@@ -47,6 +53,7 @@ def create_authority_index(data=PATH_TO_DB):
 
                     authority_count += 1
 
+    r.close()
+
     logger.info('Zakończono indeksowanie rekordów wzorcowych.')
     logger.info(f'Zaindeksowano rekordów wzorcowych: {authority_count}.')
-
