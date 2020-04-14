@@ -39,12 +39,14 @@ async def startup():
     # setup async redis connection pools
     global conn_auth_int
     global conn_auth_ext
-    conn_auth_int = await aioredis.create_redis_pool('redis://localhost', db=0, encoding='utf-8', maxsize=200)
-    conn_auth_ext = await aioredis.create_redis_pool('redis://localhost', db=1, encoding='utf-8', maxsize=200)
+    conn_auth_int = await aioredis.create_redis_pool('redis://localhost', db=0, encoding='utf-8', maxsize=50)
+    conn_auth_ext = await aioredis.create_redis_pool('redis://localhost', db=1, encoding='utf-8', maxsize=50)
 
     # setup async aiohttp connection pool
+    global aiohttp_connector
+    aiohttp_connector = aiohttp.TCPConnector(ttl_dns_cache=3600, limit=50, enable_cleanup_closed=True)
     global aiohttp_session
-    aiohttp_session = aiohttp.ClientSession()
+    aiohttp_session = aiohttp.ClientSession(connector=aiohttp_connector)
 
     # create updaters and updater_status
     global auth_updater
