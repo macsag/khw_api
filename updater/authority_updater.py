@@ -157,4 +157,5 @@ class AuthorityUpdater(object):
             auth_to_delete = await conn_auth_int.get(record_id)
             if auth_to_delete:
                 heading = prepare_name_for_indexing(json.loads(auth_to_delete).get('heading'))
-                await conn_auth_int.delete([heading, record_id])
+                await conn_auth_int.delete(heading)
+                await conn_auth_int.delete(record_id)
