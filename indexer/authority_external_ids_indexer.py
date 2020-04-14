@@ -120,6 +120,7 @@ class AuthorityExternalIdsIndex(object):
 
     def index_in_redis(self):
         r = redis.Redis(db=1)
+        r.flushdb()
 
         chunk_max_size = 1000
         keys_to_json = {k: json.dumps(v) for k, v in self.final_index.items()}
@@ -127,6 +128,8 @@ class AuthorityExternalIdsIndex(object):
 
         for chunk in chunks:
             r.mset(chunk)
+
+        r.close()
 
 
 def create_geonames_uri(geonames_id: str) -> str:
