@@ -13,6 +13,7 @@ from starlette.background import BackgroundTask
 from updater.authority_updater import AuthorityUpdater
 from updater.background_tasks import do_authority_update
 from objects.bib import BibliographicRecordsChunk
+from objects.authority import AuthorityRecordsChunk
 from objects.polona_lod import PolonaLodRecord
 from utils.marc_utils import normalize_nlp_id
 
@@ -70,6 +71,19 @@ class BibsChunkEnrichedWithIds(HTTPEndpoint):
                                                            request.query_params,
                                                            request.path_params['identifier_type'])
         resp_content = bib_chunk_object.xml_processed_chunk
+
+        return Response(resp_content, media_type='application/xml')
+
+
+@app.route('/api/{identifier_type}/authorities')
+class AuthoritiesChunkEnrichedWithIds(HTTPEndpoint):
+    async def get(self, request):
+        authorities_chunk_object = await AuthorityRecordsChunk(aiohttp_session,
+                                                               conn_auth_int,
+                                                               conn_auth_ext,
+                                                               request.query_params,
+                                                               request.path_params['identifier_type'])
+        resp_content = authorities_chunk_object.xml_processed_chunk
 
         return Response(resp_content, media_type='application/xml')
 
