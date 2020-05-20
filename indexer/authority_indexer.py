@@ -27,6 +27,8 @@ def create_authority_index(data=PATH_TO_DB):
 
     r = redis.Redis()
 
+    buff = {}
+
     with open(str(data), 'rb') as fp:
         rdr = MARCReader(fp, to_unicode=True, force_utf8=True, utf8_handling='ignore', permissive=True)
         for rcd in tqdm(rdr):
@@ -46,12 +48,17 @@ def create_authority_index(data=PATH_TO_DB):
                                           'heading': heading_full}
                     serialized_to_json = ujson.dumps(serialized_to_dict, ensure_ascii=False)
 
-                    r.mset({heading_to_index: serialized_to_json,
-                           nlp_id: serialized_to_json})
-
-                    logger.debug(f'Zaindeksowano: {heading_to_index}.')
+                    buff.update({heading_to_index: serialized_to_json,
+                                 nlp_id: serialized_to_json})
 
                     authority_count += 1
+                    break
+
+            if len(buff) > 1000:
+                r.mset(buff)
+                buff.clear()
+
+        r.mset(buff)
 
     r.close()
 
