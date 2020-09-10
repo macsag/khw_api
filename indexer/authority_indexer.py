@@ -16,7 +16,7 @@ PATH_TO_DB = Path.cwd() / 'nlp_database' / 'production' / 'authorities-all.marc'
 
 
 def flush_db():
-    r = redis.Redis()
+    r = redis.Redis(db=8)
     r.flushdb()
     r.close()
 
@@ -25,7 +25,7 @@ def create_authority_index(data=PATH_TO_DB):
     logger.info('Rozpoczęto indeksowanie rekordów wzorcowych.')
     authority_count = 0
 
-    r = redis.Redis()
+    r = redis.Redis(db=8)
 
     buff = {}
 

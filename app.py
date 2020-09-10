@@ -15,7 +15,7 @@ from updater.background_tasks import do_authority_update
 from objects.bib import BibliographicRecordsChunk
 from objects.authority import AuthorityRecordsChunk
 from objects.polona_lod import PolonaLodRecord
-from utils.marc_utils import normalize_nlp_id
+from utils.marc_utils import normalize_nlp_id_bib, convert_nlp_id_auth_to_sierra_format
 
 from applog.utils import read_logging_config, setup_logging
 from config.base_url_config import IS_LOCAL, LOC_HOST, LOC_PORT, PROD_HOST, PROD_PORT
@@ -40,8 +40,8 @@ async def startup():
     # setup async redis connection pools
     global conn_auth_int
     global conn_auth_ext
-    conn_auth_int = await aioredis.create_redis_pool('redis://localhost', db=0, encoding='utf-8', maxsize=50)
-    conn_auth_ext = await aioredis.create_redis_pool('redis://localhost', db=1, encoding='utf-8', maxsize=50)
+    conn_auth_int = await aioredis.create_redis_pool('redis://localhost', db=8, encoding='utf-8', maxsize=50)
+    conn_auth_ext = await aioredis.create_redis_pool('redis://localhost', db=9, encoding='utf-8', maxsize=50)
 
     # setup async aiohttp connection pool
     global aiohttp_connector
@@ -95,12 +95,23 @@ class AuthoritiesChunkWithExternalIds(HTTPEndpoint):
     async def get(self, request):
         authority_ids = [auth_id for auth_id in request.path_params['authority_ids'].split(',')]
         resp = await conn_auth_int.mget(*authority_ids)
+
         joined_dict = {}
         for auth, auth_ids in zip(authority_ids, resp):
             if auth_ids:
-                joined_dict.update({auth: json.loads(auth_ids)})
+                joined_dict.setdefault(auth, {}).setdefault('ids_from_internal', {}).update(json.loads(auth_ids))
             else:
-                joined_dict.update({auth: auth_ids})
+                joined_dict.setdefault(auth, {}).setdefault('ids_from_internal', None)
+
+        authority_ids_transformed_to_sierra_format = {auth_id: convert_nlp_id_auth_to_sierra_format(auth_id) for auth_id in authority_ids}
+        resp_2 = await conn_auth_ext.mget(*list(authority_ids_transformed_to_sierra_format.values()))
+
+        for auth, auth_ids in zip(list(authority_ids_transformed_to_sierra_format.keys()), resp_2):
+            if auth_ids:
+                joined_dict.setdefault(auth, {}).setdefault('ids_from_external', {}).update(json.loads(auth_ids))
+            else:
+                joined_dict.setdefault(auth, {}).setdefault('ids_from_external', None)
+
         return JSONResponse(joined_dict)
 
 
@@ -111,7 +122,7 @@ class AuthoritiesChunkWithExternalIds(HTTPEndpoint):
 @app.route('/polona-lod/{bib_nlp_id}')
 class PolonaLodFront(HTTPEndpoint):
     async def get(self, request):
-        bib_nlp_id = normalize_nlp_id(request.path_params['bib_nlp_id'])
+        bib_nlp_id = normalize_nlp_id_bib(request.path_params['bib_nlp_id'])
         polona_back = await PolonaLodRecord(bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext)
         polona_json = polona_back.get_json()
         return templates.TemplateResponse('polona-lod.html', {'request': request,
@@ -123,7 +134,7 @@ class PolonaLodFront(HTTPEndpoint):
 @app.route('/api/polona-lod/{bib_nlp_id}')
 class PolonaLodAPI(HTTPEndpoint):
     async def get(self, request):
-        bib_nlp_id = normalize_nlp_id(request.path_params['bib_nlp_id'])
+        bib_nlp_id = normalize_nlp_id_bib(request.path_params['bib_nlp_id'])
         polona_back = await PolonaLodRecord(bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext)
         polona_json = polona_back.get_json()
         return JSONResponse(polona_json)

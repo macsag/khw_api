@@ -119,7 +119,7 @@ class AuthorityExternalIdsIndex(object):
         return final_dict
 
     def index_in_redis(self):
-        r = redis.Redis(db=1)
+        r = redis.Redis(db=9)
         r.flushdb()
 
         chunk_max_size = 1000

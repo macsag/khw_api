@@ -1,6 +1,8 @@
 import re
 import json
 
+from typing import Optional
+
 from config.indexer_config import FIELDS_TO_CHECK
 
 
@@ -23,7 +25,7 @@ def prepare_name_for_indexing(descriptor_name: str) -> str:
     return descriptor_name
 
 
-def normalize_nlp_id(nlp_id: str) -> str:
+def normalize_nlp_id_bib(nlp_id: str) -> str:
     if len(nlp_id) == 14 and nlp_id[1] in ['0', '1']:
         return nlp_id
     if len(nlp_id) == 7 and not nlp_id[0] == 'b':
@@ -34,6 +36,13 @@ def normalize_nlp_id(nlp_id: str) -> str:
         return f'b000000{nlp_id[:-1]}'
     if len(nlp_id) == 9 and nlp_id[0] == 'b':
         return f'b000000{nlp_id[1:-1]}'
+    else:
+        return nlp_id
+
+
+def convert_nlp_id_auth_to_sierra_format(nlp_id: str) -> Optional[str]:
+    if len(nlp_id) == 14 and nlp_id[1] in ['0']:
+        return f'a{calculate_check_digit(nlp_id[7:])}'
     else:
         return nlp_id
 

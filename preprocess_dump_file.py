@@ -9,7 +9,7 @@ from config.indexer_config import FIELDS_TO_CHECK
 from utils.marc_utils import prepare_name_for_indexing
 
 
-CONN_INT = redis.Redis(db=0)
+CONN_INT = redis.Redis(db=15)
 
 
 def get_terms_to_search_and_references_to_raw_flds(marc_record) -> dict:
@@ -86,8 +86,7 @@ def main_loop(input_file, output_file):
 
 if __name__ == "__main__":
 
-    file_in = 'bibs-ksiazka.marc'
-    file_out = 'bibs-ksiazka-preprocessed.marc'
+    file_in = 'swiaty_melancholii.mrc'
+    file_out = 'swiaty_melancholii_preprocessed.mrc'
 
     main_loop(file_in, file_out)
-
