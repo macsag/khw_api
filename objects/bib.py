@@ -19,6 +19,7 @@ class BibliographicRecordsChunk(object):
         self.conn_auth_int = conn_auth_int
         self.conn_auth_ext = conn_auth_ext
         self.query = query
+        self.for_omnis = self.get_for_omnis_from_query()
         self.identifier_type = identifier_type
         self.response_code = None
         self.marcxml_response_content = await self.get_marcxml_response()
@@ -28,6 +29,18 @@ class BibliographicRecordsChunk(object):
         self.marc_processed_objects_chunk = None
         self.xml_processed_chunk = await self.process_response()
 
+
+    def get_for_omnis_from_query(self):
+        for_omnis = self.query.get('for_omnis')
+        if not for_omnis:
+            return False
+        if for_omnis:
+            if for_omnis == 'false':
+                return False
+            if for_omnis == 'true':
+                return True
+            else:
+                return False
 
     async def get_marcxml_response(self) -> Optional[bytes]:
         if 'http://data.bn.org.pl/api/bibs.marcxml?{}' not in self.query:
@@ -65,7 +78,10 @@ class BibliographicRecordsChunk(object):
             base = PROD_HOST
         if self.next_page_for_data_bn:
             query = self.next_page_for_data_bn.split('marcxml?')[1]
-            next_page_for_user = escape(f'http://{base}/api/{self.identifier_type}/bibs?{query}')
+            if self.for_omnis:
+                next_page_for_user = escape(f'http://{base}/api/{self.identifier_type}/bibs?for_omnis=true&{query}')
+            else:
+                next_page_for_user = escape(f'http://{base}/api/{self.identifier_type}/bibs?{query}')
         else:
             next_page_for_user = ''
 
@@ -75,12 +91,11 @@ class BibliographicRecordsChunk(object):
         return parse_xml_to_array_patched(io.BytesIO(self.marcxml_response_content), normalize_form='NFC')
 
     async def batch_process_records(self):
-            for_omnis = False if not self.query.get('for_omnis') else self.query.get('for_omnis')
             processed_recs = [await process_record(rcd,
                                                    self.conn_auth_int,
                                                    self.identifier_type,
                                                    self.conn_auth_ext,
-                                                   for_omnis=for_omnis) for rcd in self.marc_objects_chunk]
+                                                   for_omnis=self.for_omnis) for rcd in self.marc_objects_chunk]
             return processed_recs
 
     def produce_output_xml(self):

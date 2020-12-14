@@ -4,7 +4,6 @@ import json
 from typing import Optional, Dict, List
 
 import pymarc
-import aioredis
 
 from config.indexer_config import FIELDS_TO_CHECK, FIELDS_TO_CHECK_FOR_OMNIS
 
@@ -15,9 +14,7 @@ def prepare_name_for_indexing(descriptor_name: str) -> str:
         descriptor_name = ''.join(char.replace(char, ' ') if not char.isalnum() else char for char in descriptor_name)
 
         # 4.2 wielokrotne białe znaki są redukowane do jednej spacji
-        match = re.finditer(r'\s{2,}', descriptor_name)
-        for m_object in match:
-            descriptor_name = descriptor_name.replace(m_object.group(0), ' ')
+        descriptor_name = re.sub(r'\s{2,}', ' ', descriptor_name)
 
         # 4.3 białe znaki z początku i końca są usuwane
         descriptor_name = descriptor_name.strip()
