@@ -1,9 +1,12 @@
 import re
 import json
 
-from typing import Optional
+from typing import Optional, Dict, List
 
-from config.indexer_config import FIELDS_TO_CHECK
+import pymarc
+import aioredis
+
+from config.indexer_config import FIELDS_TO_CHECK, FIELDS_TO_CHECK_FOR_OMNIS
 
 
 def prepare_name_for_indexing(descriptor_name: str) -> str:
@@ -47,19 +50,34 @@ def convert_nlp_id_auth_to_sierra_format(nlp_id: str) -> Optional[str]:
         return nlp_id
 
 
-async def get_terms_to_search_and_references_to_raw_flds(marc_record) -> dict:
+async def get_terms_to_search_and_references_to_raw_flds(marc_record: pymarc.Record,
+                                                         for_omnis: bool = False) -> Dict[str, List[pymarc.Field]]:
+    # create empty dict for results
     terms_fields_ids = {}
 
-    for marc_field_and_subfields in FIELDS_TO_CHECK:
+    # switch between fields to check
+    fields_to_check = FIELDS_TO_CHECK_FOR_OMNIS if for_omnis else FIELDS_TO_CHECK
+
+    # iterate over constant: fields to check in marc record
+    for marc_field_and_subfields in fields_to_check:
+
+        # get field tag and subfields tags
         fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
 
+        # check if field present in marc record
         if fld in marc_record:
+
+            # get list of raw field objects (pymarc.Field)
             raw_objects_flds_list = marc_record.get_fields(fld)
 
+            # iterate over raw field objects
             for raw_fld in raw_objects_flds_list:
+
+                # get term from raw field and normalize it
                 term_to_search = prepare_name_for_indexing(
                     ' '.join(subfld for subfld in raw_fld.get_subfields(*subflds)))
 
+                # create new entry in dict if necessary and/or append raw fld to list
                 terms_fields_ids.setdefault(term_to_search, {}).setdefault('raw_flds', []).append(raw_fld)
 
     return terms_fields_ids
@@ -83,60 +101,68 @@ def calculate_check_digit(record_id: str) -> str:
     return record_id + check_digit
 
 
-async def process_record(marc_record, conn_auth_int, identifier_type, conn_auth_ext, polona=False):
+async def process_record(marc_record: pymarc.Record,
+                         conn_auth_int,
+                         identifier_type: str,
+                         conn_auth_ext,
+                         polona: bool = False,
+                         for_omnis: bool = False):
     """
     Main processing loop for adding authority identifiers to bibliographic record.
     """
 
     # get all terms to search for in redis index and get all references to raw flds with these terms
-    terms_fields_ids = await get_terms_to_search_and_references_to_raw_flds(marc_record)
+    terms_fields_ids = await get_terms_to_search_and_references_to_raw_flds(marc_record,
+                                                                            for_omnis=for_omnis)
 
-    # get all internal ids (meaning: from original NLP database via data.bn.org.pl) from redis index db=0
-    internal_ids = await conn_auth_int.mget(*list(terms_fields_ids.keys()))
+    # there are some cases, when there is nothing to resolve, so better check it
+    if terms_fields_ids:
+        # get all internal ids (meaning: from original NLP database via data.bn.org.pl) from redis index db=8
+        internal_ids = await conn_auth_int.mget(*list(terms_fields_ids.keys()))
 
-    # add internal ids to terms_fields_ids dict and prepare helper list of tuples for external ids redis query
-    helper_list_for_ext_ids_query = []
+        # add internal ids to terms_fields_ids dict and prepare helper list of tuples for external ids redis query
+        helper_list_for_ext_ids_query = []
 
-    for term, int_ids in zip(list(terms_fields_ids.keys()), internal_ids):
-        if int_ids:
-            fields_ids = terms_fields_ids.get(term)
-            in_json = json.loads(int_ids)
-            fields_ids.setdefault('internal_ids', in_json)
-            helper_list_for_ext_ids_query.append((term, transform_nlp_id(in_json.get('nlp_id'))))
+        for term, int_ids in zip(list(terms_fields_ids.keys()), internal_ids):
+            if int_ids:
+                fields_ids = terms_fields_ids.get(term)
+                in_json = json.loads(int_ids)
+                fields_ids.setdefault('internal_ids', in_json)
+                helper_list_for_ext_ids_query.append((term, transform_nlp_id(in_json.get('nlp_id'))))
 
-    # add single subfield |0 to fields in marc record by identifier type
-    if identifier_type in ['nlp_id', 'mms_id']:
-        for flds_ids in terms_fields_ids.values():
-            for field in flds_ids.get('raw_flds'):
-                if flds_ids.get('internal_ids'):
-                    field.add_subfield('0', flds_ids.get('internal_ids').get(identifier_type))
+        # add single subfield |0 to fields in marc record by identifier type
+        if identifier_type in ['nlp_id', 'mms_id']:
+            for flds_ids in terms_fields_ids.values():
+                for field in flds_ids.get('raw_flds'):
+                    if flds_ids.get('internal_ids'):
+                        field.add_subfield('0', flds_ids.get('internal_ids').get(identifier_type))
 
-    # add multiple subfields |0 to fields in marc record if identifier type == all_ids
-    if identifier_type == 'all_ids':
-        all_ids = {}
+        # add multiple subfields |0 to fields in marc record if identifier type == all_ids
+        if identifier_type == 'all_ids':
+            all_ids = {}
 
-        if helper_list_for_ext_ids_query:
-            external_ids = await conn_auth_ext.mget(*[nlp_id for term, nlp_id in helper_list_for_ext_ids_query])
+            if helper_list_for_ext_ids_query:
+                external_ids = await conn_auth_ext.mget(*[nlp_id for term, nlp_id in helper_list_for_ext_ids_query])
 
-            for term_nlp_id, ext_ids in zip(helper_list_for_ext_ids_query, external_ids):
-                if ext_ids:
-                    fields_ids = terms_fields_ids.get(term_nlp_id[0])
-                    fields_ids.setdefault('external_ids', json.loads(ext_ids))
+                for term_nlp_id, ext_ids in zip(helper_list_for_ext_ids_query, external_ids):
+                    if ext_ids:
+                        fields_ids = terms_fields_ids.get(term_nlp_id[0])
+                        fields_ids.setdefault('external_ids', json.loads(ext_ids))
 
-        for flds_ids in terms_fields_ids.values():
-            for field in flds_ids.get('raw_flds'):
+            for flds_ids in terms_fields_ids.values():
+                for field in flds_ids.get('raw_flds'):
 
-                i_ids = flds_ids.get('internal_ids')
-                if i_ids:
-                    for id_type, ident in i_ids.items():
-                        if ident and id_type != 'heading':
-                            field.add_subfield('0', f'({id_type}){ident}')
+                    i_ids = flds_ids.get('internal_ids')
+                    if i_ids:
+                        for id_type, ident in i_ids.items():
+                            if ident and id_type != 'heading':
+                                field.add_subfield('0', f'({id_type}){ident}')
 
-                e_ids = flds_ids.get('external_ids')
-                if e_ids:
-                    for id_type, ident in e_ids.items():
-                        if ident:
-                            field.add_subfield('0', f'({id_type}){ident}')
+                    e_ids = flds_ids.get('external_ids')
+                    if e_ids:
+                        for id_type, ident in e_ids.items():
+                            if ident:
+                                field.add_subfield('0', f'({id_type}){ident}')
 
     if polona:
         return terms_fields_ids

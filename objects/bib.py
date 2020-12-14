@@ -75,10 +75,12 @@ class BibliographicRecordsChunk(object):
         return parse_xml_to_array_patched(io.BytesIO(self.marcxml_response_content), normalize_form='NFC')
 
     async def batch_process_records(self):
+            for_omnis = False if not self.query.get('for_omnis') else self.query.get('for_omnis')
             processed_recs = [await process_record(rcd,
                                                    self.conn_auth_int,
                                                    self.identifier_type,
-                                                   self.conn_auth_ext) for rcd in self.marc_objects_chunk]
+                                                   self.conn_auth_ext,
+                                                   for_omnis=for_omnis) for rcd in self.marc_objects_chunk]
             return processed_recs
 
     def produce_output_xml(self):
