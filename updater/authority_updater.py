@@ -107,30 +107,64 @@ class AuthorityUpdater(object):
                                          'mms_id': mms_id,
                                          'viaf_id': viaf_id,
                                          'coords': coordinates,
-                                         'heading': heading_full}
+                                         'heading': heading_full,
+                                         'heading_tag': fld}
+
                             json_to_update = json.dumps(to_update, ensure_ascii=False)
 
                             if nlp_id:
+                                # check if record was already indexed and if so, get the old version
                                 auth_to_update = await conn_auth_int.get(nlp_id)
-                                if auth_to_update:  # rcd is old and already indexed
+
+                                if auth_to_update:
+                                    # rcd was already indexed and there is old version
                                     auth_to_update_dict = json.loads(auth_to_update)
+
+                                    # get the old heading for comparison
                                     old_heading = prepare_name_for_indexing(auth_to_update_dict.get('heading'))
-                                    if old_heading == heading_to_index:  # heading wasn't modified - break and continue
+
+                                    if old_heading == heading_to_index:
+                                        # heading wasn't modified
                                         if to_update == auth_to_update_dict:
-                                            break
+                                            # nothing's changed, do nothing
+                                            break  # breaks only the inner loop (searching for fields to index)
+
                                         else:
-                                            await conn_auth_int.set(nlp_id, json_to_update)
-                                            break
-                                    else:  # heading was modified
+                                            # something's changed
+                                            if auth_to_update_dict.get('heading_tag') != '130' and fld == '130':
+                                                # if authority with the same heading is already indexed
+                                                # and the new one (currently processed) is 130 heading
+                                                # just skip it (break the loop)
+
+                                                break  # breaks only the inner loop (searching for fields to index)
+                                            else:
+                                                # if authority with the same heading is already indexed
+                                                # and the new one (currently processed) is not 130 heading
+                                                # do the usual job
+                                                # record will be normally processed
+                                                # and will overwrite the existing record
+
+                                                await conn_auth_int.mset({nlp_id: json_to_update,
+                                                                         heading_to_index: json_to_update})
+
+                                                break  # breaks only the inner loop (searching for fields to index)
+                                    else:
+                                        # heading was modified
                                         await conn_auth_int.delete(old_heading)
                                         await conn_auth_int.mset({nlp_id: json_to_update,
                                                                  heading_to_index: json_to_update})
-                                        break
-                                else:  # rcd is new and it has to be indexed
+
+                                        break  # breaks only the inner loop (searching for fields to index)
+
+                                else:
+                                    # record is new and it has to be indexed
+
                                     await conn_auth_int.mset({nlp_id: json_to_update,
                                                               heading_to_index: json_to_update})
+
                                     logging.debug(f'Dodano nowe hasło: {heading_to_index}')
-                                    break
+
+                                    break  # breaks only the inner loop (searching for fields to index)
 
     @staticmethod
     async def get_records_ids_from_data_bn_for_authority_index_update(query, aiohttp_session):

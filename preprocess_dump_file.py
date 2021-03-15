@@ -5,7 +5,7 @@ from pymarc import MARCReader, Record
 import redis
 from tqdm import tqdm
 
-from config.indexer_config import FIELDS_TO_CHECK
+from config.indexer_config import FIELDS_TO_CHECK_FOR_OMNIS
 from utils.marc_utils import prepare_name_for_indexing
 
 
@@ -15,7 +15,7 @@ CONN_INT = redis.Redis(db=8)
 def get_terms_to_search_and_references_to_raw_flds(marc_record) -> dict:
     terms_fields_ids = {}
 
-    for marc_field_and_subfields in FIELDS_TO_CHECK:
+    for marc_field_and_subfields in FIELDS_TO_CHECK_FOR_OMNIS:
         fld, subflds = marc_field_and_subfields[0], marc_field_and_subfields[1]
 
         if fld in marc_record:
@@ -86,7 +86,7 @@ def main_loop(input_file, output_file):
 
 if __name__ == "__main__":
 
-    file_in = 'wyborcza.mrc'
-    file_out = 'wyborcza_preprocessed_13_11_2020.mrc'
+    file_in = 'bibs-artykul.marc'
+    file_out = 'bib_artykul_preprocessed_15_02_2021.mrc'
 
     main_loop(file_in, file_out)
