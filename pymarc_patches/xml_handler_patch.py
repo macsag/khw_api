@@ -26,6 +26,9 @@ class XmlHandlerPatched(XmlHandler):
             self._field = Field(tag)
         elif element == 'datafield':
             tag = attrs.getValue((None, u'tag'))
+            # patch 3: if somehow datafield has controlfield tag
+            if tag in ['001', '002', '003', '004', '005', '006', '007', '008', '009', '04 ']:
+                return
             ind1 = attrs.get((None, u'ind1'), u' ')
             ind2 = attrs.get((None, u'ind2'), u' ')
             # patch 2: if field lacks indicators or they're not ASCII, force to blank
@@ -59,9 +62,16 @@ class XmlHandlerPatched(XmlHandler):
             self._record.add_field(self._field)
             self._field = None
         elif element == 'datafield':
+            # patch 3: if it is not a valid datafield, omit it
+            if not self._field:
+                return
             self._record.add_field(self._field)
             self._field = None
         elif element == 'subfield':
+            print(self._field)
+            # patch 3: if it is a subfield within an invalid datafield, omit it
+            if not self._field:
+                return
             self._field.subfields.append(self._subfield_code)
             self._field.subfields.append(text)
             self._subfield_code = None
