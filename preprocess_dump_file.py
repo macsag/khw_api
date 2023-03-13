@@ -86,7 +86,7 @@ def main_loop(input_file, output_file):
 
 if __name__ == "__main__":
 
-    file_in = 'bibs-artykul.marc'
-    file_out = 'bib_artykul_preprocessed_15_02_2021.mrc'
+    file_in = 'bibs-artykul.mrc'
+    file_out = 'bibs_artykul_pre_2023_02_07.mrc'
 
     main_loop(file_in, file_out)
