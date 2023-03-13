@@ -18,7 +18,7 @@ redis==3.5.3
 starlette==0.11.2
 tqdm==4.61.0
 typing-extensions==3.10.0.0
-ujson==4.0.2
+ujson==5.4.0
 uvicorn==0.11.8
 validate-utf8==0.1
 websockets==8.0
