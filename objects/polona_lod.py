@@ -107,7 +107,7 @@ class PolonaLodRecord(object):
                     for auth_id_type, auth_id in auth_ids.items():
                         if auth_id_type == 'nlp_id':
                             to_update = {'display': auth_id,
-                                         'link': f'https://data.bn.org.pl/api/authorities.marcxml?id={auth_id}'}
+                                         'link': f'https://dbn.bn.org.pl/descriptor-details/{auth_id}'}
                             converted_json.setdefault(auth_role,
                                                       {}).setdefault(heading,
                                                                      {}).setdefault('Identyfikator BN',
@@ -148,3 +148,27 @@ class PolonaLodRecord(object):
 
     def get_json(self):
         return self.converted_json
+
+    def get_json_v2(self):
+        descriptors = []
+
+        for auth_role, descriptor in self.converted_json.items():
+            descriptors_with_auth_role = {'name': auth_role}
+            subjects = []
+
+            for heading, id_object in descriptor.items():
+                subject = {'name': heading}
+                identifiers = []
+
+                for id_type, id_details in id_object.items():
+                    identifiers.append({'type': id_type,
+                                        'display': id_details.get('display'),
+                                        'link': id_details.get('link')})
+
+                subject['identifiers'] = identifiers
+                subjects.append(subject)
+
+            descriptors_with_auth_role['subjects'] = subjects
+            descriptors.append(descriptors_with_auth_role)
+
+        return {'descriptors': descriptors}

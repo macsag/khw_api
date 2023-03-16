@@ -140,6 +140,16 @@ class PolonaLodAPI(HTTPEndpoint):
         return JSONResponse(polona_json)
 
 
+# json endpoint for polona.pl v2
+@app.route('/api/v2/polona-lod/{bib_nlp_id}')
+class PolonaLodV2API(HTTPEndpoint):
+    async def get(self, request):
+        bib_nlp_id = normalize_nlp_id_bib(request.path_params['bib_nlp_id'])
+        polona_back = await PolonaLodRecord(bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext)
+        polona_json = polona_back.get_json_v2()
+        return JSONResponse(polona_json)
+
+
 # updater
 # schedule update
 @app.route('/updater/authorities')
