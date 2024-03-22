@@ -68,7 +68,6 @@ class XmlHandlerPatched(XmlHandler):
             self._record.add_field(self._field)
             self._field = None
         elif element == 'subfield':
-            print(self._field)
             # patch 3: if it is a subfield within an invalid datafield, omit it
             if not self._field:
                 return
