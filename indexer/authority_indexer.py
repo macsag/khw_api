@@ -12,6 +12,7 @@ from utils.marc_utils import prepare_name_for_indexing
 
 
 logger = logging.getLogger(__name__)
+logger_interfield_duplicates = logging.getLogger('logger_interfield_duplicates')
 
 PATH_TO_DB = Path.cwd() / 'nlp_database' / 'production' / 'authorities-all.marc'
 
@@ -73,6 +74,16 @@ def create_authority_index(data: Path = PATH_TO_DB) -> None:
                                          f'{fld} - '
                                          f'{nlp_id} - '
                                          f'{mms_id}.')
+
+                            logger_interfield_duplicates.error(f'Dublet: {descr_from_helper.get("heading")} - '
+                                                               f'{descr_from_helper.get("heading_tag")} - '
+                                                               f'{descr_from_helper.get("nlp_id")} - '
+                                                               f'{descr_from_helper.get("mms_id")} || '
+                                                               f'{heading_full} - '
+                                                               f'{fld} - '
+                                                               f'{nlp_id} - '
+                                                               f'{mms_id}.')
+
                             break  # breaks only the inner loop (searching for fields to index)
 
                         else:
@@ -89,6 +100,16 @@ def create_authority_index(data: Path = PATH_TO_DB) -> None:
                                          f'{fld} - '
                                          f'{nlp_id} - '
                                          f'{mms_id}.')
+
+                            if descr_from_helper.get('heading_tag') != fld:
+                                logger_interfield_duplicates.error(f'Dublet: {descr_from_helper.get("heading")} - '
+                                                                   f'{descr_from_helper.get("heading_tag")} - '
+                                                                   f'{descr_from_helper.get("nlp_id")} - '
+                                                                   f'{descr_from_helper.get("mms_id")} || '
+                                                                   f'{heading_full} - '
+                                                                   f'{fld} - '
+                                                                   f'{nlp_id} - '
+                                                                   f'{mms_id}.')
 
                             helper_dict.update({heading_to_index: serialized_to_dict,
                                                 nlp_id: serialized_to_dict})
