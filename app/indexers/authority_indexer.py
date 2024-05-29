@@ -1,14 +1,15 @@
-from collections import namedtuple
 import logging
 from pathlib import Path
-import ujson
 
-from pymarc import MARCReader, Record, Field
+
+from pymarc import MARCReader
 import redis
 from tqdm import tqdm
 
 from utils.indexer_consts import AUTHORITY_INDEX_FIELDS
-from utils.indexer_utils import get_nlp_id, get_mms_id, get_viaf_id, get_p_id, get_coordinates
+from utils.indexer_utils import (get_nlp_id, get_mms_id, get_viaf_id,
+                                 get_p_id, get_coordinates, prepare_authority_record_for_indexing,
+                                 AuthorityRecordForIndexing)
 from utils.marc_utils import prepare_name_for_indexing
 
 
@@ -143,38 +144,6 @@ def index_authorities_in_redis(
     r.close()
 
     logger.info(f'Connection to Redis closed. ')
-
-
-class AuthorityRecordForIndexing(namedtuple('AuthorityRecordForIndexing',
-                                            ['heading',
-                                             'heading_tag',
-                                             'nlp_id',
-                                             'mms_id',
-                                             'p_id',
-                                             'viaf_id',
-                                             'coords'])):
-    __slots__ = ()
-
-    def as_json(self) -> str:
-        return ujson.dumps(self._asdict(), ensure_ascii=False)
-
-
-def prepare_authority_record_for_indexing(rcd: Record, fld: Field) -> AuthorityRecordForIndexing:
-    heading = rcd.get_fields(fld)[0].value()
-    heading_tag = fld
-    nlp_id = get_nlp_id(rcd)
-    mms_id = get_mms_id(rcd)
-    p_id = get_p_id(rcd)
-    viaf_id = get_viaf_id(rcd)
-    coordinates = get_coordinates(rcd)
-
-    return AuthorityRecordForIndexing(heading,
-                                      heading_tag,
-                                      nlp_id,
-                                      mms_id,
-                                      p_id,
-                                      viaf_id,
-                                      coordinates)
 
 
 def prepare_duplicate_error_message(auth_rcd_from_helper: AuthorityRecordForIndexing,

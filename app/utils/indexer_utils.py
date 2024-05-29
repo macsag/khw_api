@@ -1,8 +1,10 @@
+from collections import namedtuple
 from typing import Optional
 
-from pymarc import Record
+from pymarc import Record, Field
+import ujson
 
-from .coordinates_utils import check_defg_034, get_list_of_coords_from_valid_marc, convert_to_bbox
+from coordinates_utils import check_defg_034, get_list_of_coords_from_valid_marc, convert_to_bbox
 
 
 def get_mms_id(rcd):
@@ -47,3 +49,35 @@ async def is_data_bn_ok(aiohttp_session):
             return True
         else:
             return None
+
+
+class AuthorityRecordForIndexing(namedtuple('AuthorityRecordForIndexing',
+                                            ['heading',
+                                             'heading_tag',
+                                             'nlp_id',
+                                             'mms_id',
+                                             'p_id',
+                                             'viaf_id',
+                                             'coords'])):
+    __slots__ = ()
+
+    def as_json(self) -> str:
+        return ujson.dumps(self._asdict(), ensure_ascii=False)
+
+
+def prepare_authority_record_for_indexing(rcd: Record, fld: Field) -> AuthorityRecordForIndexing:
+    heading = rcd.get_fields(fld)[0].value()
+    heading_tag = fld
+    nlp_id = get_nlp_id(rcd)
+    mms_id = get_mms_id(rcd)
+    p_id = get_p_id(rcd)
+    viaf_id = get_viaf_id(rcd)
+    coordinates = get_coordinates(rcd)
+
+    return AuthorityRecordForIndexing(heading,
+                                      heading_tag,
+                                      nlp_id,
+                                      mms_id,
+                                      p_id,
+                                      viaf_id,
+                                      coordinates)

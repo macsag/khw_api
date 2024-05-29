@@ -1,3 +1,6 @@
+from authorities_updater import AuthorityUpdater
+
+
 class AuthorityUpdaterClient(object):
     _authority_updater: AuthorityUpdater = None
 
