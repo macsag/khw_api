@@ -3,10 +3,12 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from objects_business_logic.polona_lod import PolonaLodHandler
 from clients.http_clients.http_connector import HttpAsyncConnector
-from utils.marc_utils import normalize_nlp_id_bib
 from clients.redis_clients.redis_connector import RedisClientTuple, RedisAsyncConnector
+from models.polona_lod import PolonaLodOutV2
+from objects_business_logic.polona_lod import PolonaLodHandler
+from utils.marc_utils import normalize_nlp_id_bib
+
 
 router = APIRouter(tags=['polona_lod'])
 templates = Jinja2Templates(directory='templates')
@@ -32,19 +34,16 @@ async def get_polona_lod_html(
                  'polona_json': polona_json})
 
 
-# json endpoint for polona.pl
-@router.get('/api/polona-lod/{bib_nlp_id}')
-async def get(self, request):
-    bib_nlp_id = normalize_nlp_id_bib(request.path_params['bib_nlp_id'])
-    polona_back = await PolonaLodRecord(bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext)
-    polona_json = polona_back.get_json()
-    return JSONResponse(polona_json)
+@router.get('/api/v2/polona-lod/{bib_nlp_id}', response_model=PolonaLodOutV2)
+async def get_polona_lod_v2(
+        bib_nlp_id: str,
+        aiohttp_client: ClientSession = Depends(HttpAsyncConnector.get_http_client),
+        redis_client: RedisClientTuple = Depends(RedisAsyncConnector.get_redis_client)):
+    bib_nlp_id = normalize_nlp_id_bib(bib_nlp_id)
 
+    polona_handler = PolonaLodHandler(aiohttp_client,
+                                      redis_client,
+                                      bib_nlp_id)
+    polona_json_v2 = await polona_handler.get_polona_json_v2()
 
-# json endpoint for polona.pl v2
-@router.get('/api/v2/polona-lod/{bib_nlp_id}')
-async def get(self, request):
-    bib_nlp_id = normalize_nlp_id_bib(request.path_params['bib_nlp_id'])
-    polona_back = await PolonaLodRecord(bib_nlp_id, aiohttp_session, conn_auth_int, conn_auth_ext)
-    polona_json = polona_back.get_json_v2()
-    return JSONResponse(polona_json)
+    return polona_json_v2

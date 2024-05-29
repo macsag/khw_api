@@ -27,8 +27,6 @@ PROD_PORT = int(os.getenv('PROD_PORT'))
 logconfig_dict = read_logging_config('applog/logging.yml')
 setup_logging(logconfig_dict)
 
-templates = Jinja2Templates(directory='templates')
-
 
 async def on_start_up() -> None:
     await RedisAsyncConnector.create_redis_client()
